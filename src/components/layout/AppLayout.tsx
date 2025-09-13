@@ -9,14 +9,11 @@ import {
   ShieldCheck,
   Menu,
   X,
-  User,
-  Sun,
-  Moon
+  User
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import AddDebtDialog from '@/components/debt/AddDebtDialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -28,7 +25,6 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   
   const navItems = [
@@ -57,9 +53,6 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         </Button>
         <div className="font-semibold text-xl">DebtEase</div>
         <div className="flex items-center gap-2">
-          <Button size="icon" variant="outline" onClick={toggleTheme}>
-            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="icon" variant="outline" className="rounded-full">
@@ -151,13 +144,10 @@ const AppLayout = ({ children }: AppLayoutProps) => {
               // This will be handled by the parent component
               console.log('Add debt:', debt);
             }} />
-            <div className="flex items-center justify-between">
-              <Button size="icon" variant="outline" onClick={toggleTheme}>
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
+            <div className="flex items-center justify-center">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="gap-2">
+                  <Button size="sm" variant="outline" className="gap-2 w-full">
                     <User className="h-4 w-4" />
                     Account
                   </Button>

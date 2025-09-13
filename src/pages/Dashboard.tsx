@@ -6,11 +6,12 @@ import {
   PieChart, 
   Receipt,
   Building2,
-  Banknote
+  Banknote,
+  TrendingDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import WidgetCard from '@/components/dashboard/WidgetCard';
 import DebtWidget from '@/components/dashboard/widgets/DebtWidget';
-import PlaceholderWidget from '@/components/dashboard/widgets/PlaceholderWidget';
 
 const Dashboard = () => {
   const [greeting, setGreeting] = useState('');
@@ -39,131 +40,135 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-fold-gray-100">
       {/* Header */}
-      <div className="border-b border-gray-100 bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                {greeting}, {userProfile.full_name} 👋
-              </h1>
-              <p className="text-sm text-gray-500">
-                Here's your financial overview
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Monthly Income</p>
-              <p className="text-lg font-semibold">{formatCurrency(userProfile.monthly_income)}</p>
-            </div>
+      <div className="bg-white sticky top-0 z-10 px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-fold-gray-900">
+              {greeting}, {userProfile.full_name} 👋
+            </h1>
+            <p className="text-sm text-fold-gray-500 mt-1">
+              Here's your financial overview
+            </p>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-6">
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {/* Debt Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="lg:col-span-2"
-          >
-            <DebtWidget />
-          </motion.div>
+      <div className="px-6 py-4 space-y-4">
+        {/* Debt Widget - Full Width */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <DebtWidget />
+        </motion.div>
 
-          {/* Investments Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <PlaceholderWidget
-              title="Investments"
-              icon={<TrendingUp className="h-4 w-4 text-gray-600" />}
-              value={formatCurrency(208893)}
-              subtext="Total value"
-              trend="+26.6%"
-              trendUp={true}
-            />
-          </motion.div>
+        {/* Investments Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <WidgetCard
+            title="Investments"
+            icon={<TrendingUp className="h-5 w-5 text-fold-gray-600" />}
+            subtitle="Mutual Funds"
+            value={formatCurrency(208893)}
+            label="Total"
+          />
+        </motion.div>
 
-          {/* Cash Flow Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <PlaceholderWidget
-              title="Cash Flow"
-              icon={<Wallet className="h-4 w-4 text-gray-600" />}
-              value={formatCurrency(3301)}
-              subtext="September 2025"
-              trend="94% less"
-              trendUp={false}
-            />
-          </motion.div>
+        {/* MHRH Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <WidgetCard
+            title="MHRH"
+            subtitle="Mihirsinh Chauhan"
+            icon={<Building2 className="h-5 w-5 text-fold-gray-600" />}
+            value={formatCurrency(253221)}
+            label="Net worth"
+            hasChart={true}
+            chartData={[
+              { value: 253221, date: "Sep 13" },
+              { value: 250000, date: "Sep 12" },
+              { value: 248000, date: "Sep 11" },
+            ]}
+            metrics={[
+              { label: "THIS MONTH", value: "+₹3,542" },
+              { label: "THIS YEAR", value: "+₹70,664" },
+              { label: "LIQUID", value: "₹44,327" },
+              { label: "INVESTMENT", value: "₹2,08,893" }
+            ]}
+          />
+        </motion.div>
 
-          {/* Spending Summary Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-          >
-            <PlaceholderWidget
-              title="Spending Summary"
-              icon={<PieChart className="h-4 w-4 text-gray-600" />}
-              value={formatCurrency(30009)}
-              subtext="September 2025"
-            />
-          </motion.div>
+        {/* Cash Flow Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <WidgetCard
+            title="Cash Flow"
+            icon={<Wallet className="h-5 w-5 text-fold-gray-600" />}
+            subtitle="SEPTEMBER 2025"
+            flowData={{
+              incoming: 3301,
+              outgoing: -30009,
+              invested: 0,
+              left: 0
+            }}
+          />
+        </motion.div>
 
-          {/* Bills Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <PlaceholderWidget
-              title="Bills"
-              icon={<Receipt className="h-4 w-4 text-gray-600" />}
-              value="No upcoming dues"
-              subtext="September 2025"
-            />
-          </motion.div>
+        {/* Spending Summary Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <WidgetCard
+            title="Spending Summary"
+            icon={<PieChart className="h-5 w-5 text-fold-gray-600" />}
+            subtitle="SEPTEMBER 2025"
+            spendingData={[
+              { category: "Bill", amount: -19691 },
+              { category: "Food & Drinks", amount: -2765 },
+              { category: "Groceries", amount: -1578 },
+              { category: "Transport", amount: -837 },
+              { category: "Services", amount: -500 },
+              { category: "Untagged", amount: -4638 }
+            ]}
+          />
+        </motion.div>
 
-          {/* Net Worth Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-          >
-            <PlaceholderWidget
-              title="MHRH"
-              icon={<Building2 className="h-4 w-4 text-gray-600" />}
-              value={formatCurrency(253221)}
-              subtext="Net worth"
-              trend="+16.1%"
-              trendUp={true}
-            />
-          </motion.div>
-
-          {/* Current Balance Widget */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7 }}
-            className="lg:col-span-2"
-          >
-            <PlaceholderWidget
-              title="STATE BANK OF INDIA"
-              icon={<Banknote className="h-4 w-4 text-gray-600" />}
-              value={formatCurrency(43527)}
-              subtext="Current balance"
-            />
-          </motion.div>
-        </div>
+        {/* STATE BANK OF INDIA Widget */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+        >
+          <WidgetCard
+            title="STATE BANK OF INDIA"
+            subtitle="****6482"
+            icon={<Banknote className="h-5 w-5 text-fold-gray-600" />}
+            value={formatCurrency(43527)}
+            label="Current balance"
+            hasAreaChart={true}
+            chartData={[
+              { value: 43527, date: "Sep 13" },
+              { value: 40000, date: "Sep 10" },
+              { value: 42000, date: "Sep 7" },
+              { value: 45000, date: "Aug 14" },
+            ]}
+          />
+        </motion.div>
       </div>
     </div>
   );

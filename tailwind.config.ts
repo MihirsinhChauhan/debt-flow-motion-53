@@ -2,7 +2,6 @@
 import type { Config } from "tailwindcss";
 
 export default {
-	darkMode: ["class"],
 	content: [
 		"./pages/**/*.{ts,tsx}",
 		"./components/**/*.{ts,tsx}",
@@ -63,17 +62,30 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
-				debt: {
-					low: '#34A853',
-					medium: '#FBBC05',
-					high: '#EA4335',
+				/* Fold app color palette */
+				'fold-gray': {
+					'50': 'hsl(var(--fold-gray-50))',
+					'100': 'hsl(var(--fold-gray-100))',
+					'200': 'hsl(var(--fold-gray-200))',
+					'300': 'hsl(var(--fold-gray-300))',
+					'400': 'hsl(var(--fold-gray-400))',
+					'500': 'hsl(var(--fold-gray-500))',
+					'600': 'hsl(var(--fold-gray-600))',
+					'700': 'hsl(var(--fold-gray-700))',
+					'800': 'hsl(var(--fold-gray-800))',
+					'900': 'hsl(var(--fold-gray-900))',
 				},
-				finance: {
-					blue: '#1A73E8',
-					lightBlue: '#4285F4',
-					green: '#34A853',
-					yellow: '#FBBC05',
-					red: '#EA4335',
+				success: {
+					DEFAULT: 'hsl(var(--success))',
+					light: 'hsl(var(--success-light))',
+				},
+				warning: {
+					DEFAULT: 'hsl(var(--warning))',
+					light: 'hsl(var(--warning-light))',
+				},
+				info: {
+					DEFAULT: 'hsl(var(--info))',
+					light: 'hsl(var(--info-light))',
 				},
 			},
 			borderRadius: {
