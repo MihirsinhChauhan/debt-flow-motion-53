@@ -35,3 +35,8 @@ export const OnboardingCard: React.FC<OnboardingCardProps> = ({
 };
 
 
+
+
+
+
+

@@ -47,7 +47,7 @@ const DebtProgressChart = ({ debts }: DebtProgressChartProps) => {
               ))}
             </Pie>
             <Tooltip 
-              formatter={(value: number) => [`$${value.toLocaleString()}`, 'Remaining']}
+              formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Remaining']}
               contentStyle={{ 
                 borderRadius: '0.5rem',
                 border: '1px solid #f1f1f1',

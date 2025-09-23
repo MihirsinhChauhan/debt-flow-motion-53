@@ -1,26 +1,24 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Wallet, 
-  PieChart, 
+import {
+  TrendingUp,
+  Wallet,
+  PieChart,
   Receipt,
   Building2,
   Banknote,
   TrendingDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import WidgetCard from '@/components/dashboard/WidgetCard';
 import DebtWidget from '@/components/dashboard/widgets/DebtWidget';
+import { useAuth } from '@/context/AuthContext';
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const [greeting, setGreeting] = useState('');
 
-  // Sample data - in real app this would come from Supabase
-  const userProfile = {
-    full_name: 'Mihir',
-    monthly_income: 85000
-  };
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -40,23 +38,45 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-fold-gray-100">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white sticky top-0 z-10 px-6 py-4">
+      <div className="bg-background px-6 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-fold-gray-900">
-              {greeting}, {userProfile.full_name} 👋
+            <h1 className="text-2xl font-bold text-foreground">
+              {user?.full_name || 'Mihirsinh'}
             </h1>
-            <p className="text-sm text-fold-gray-500 mt-1">
-              Here's your financial overview
+            <p className="text-sm text-muted-foreground mt-1 flex items-center">
+              5 unread updates <span className="ml-2">📈</span>
             </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="text-muted-foreground">🔔</div>
+            <div className="text-muted-foreground">📋</div>
           </div>
         </div>
       </div>
 
+      {/* Hide tips / See all buttons */}
+      <div className="px-6 flex gap-2 mb-4">
+        <Button
+          variant="secondary"
+          size="sm"
+          className="bg-secondary text-secondary-foreground border-0 rounded-full px-4 py-2 text-sm"
+        >
+          😴 Hide tips
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="bg-secondary text-secondary-foreground border-0 rounded-full px-4 py-2 text-sm"
+        >
+          See all →
+        </Button>
+      </div>
+
       {/* Main Content */}
-      <div className="px-6 py-4 space-y-4">
+      <div className="px-6 py-0 space-y-4">
         {/* Debt Widget - Full Width */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -74,7 +94,7 @@ const Dashboard = () => {
         >
           <WidgetCard
             title="Investments"
-            icon={<TrendingUp className="h-5 w-5 text-fold-gray-600" />}
+            icon={<TrendingUp className="h-5 w-5" />}
             subtitle="Mutual Funds"
             value={formatCurrency(208893)}
             label="Total"
@@ -90,7 +110,7 @@ const Dashboard = () => {
           <WidgetCard
             title="MHRH"
             subtitle="Mihirsinh Chauhan"
-            icon={<Building2 className="h-5 w-5 text-fold-gray-600" />}
+            icon={<Building2 className="h-5 w-5" />}
             value={formatCurrency(253221)}
             label="Net worth"
             hasChart={true}
@@ -116,7 +136,7 @@ const Dashboard = () => {
         >
           <WidgetCard
             title="Cash Flow"
-            icon={<Wallet className="h-5 w-5 text-fold-gray-600" />}
+            icon={<Wallet className="h-5 w-5" />}
             subtitle="SEPTEMBER 2025"
             flowData={{
               incoming: 3301,
@@ -135,7 +155,7 @@ const Dashboard = () => {
         >
           <WidgetCard
             title="Spending Summary"
-            icon={<PieChart className="h-5 w-5 text-fold-gray-600" />}
+            icon={<PieChart className="h-5 w-5" />}
             subtitle="SEPTEMBER 2025"
             spendingData={[
               { category: "Bill", amount: -19691 },
@@ -157,7 +177,7 @@ const Dashboard = () => {
           <WidgetCard
             title="STATE BANK OF INDIA"
             subtitle="****6482"
-            icon={<Banknote className="h-5 w-5 text-fold-gray-600" />}
+            icon={<Banknote className="h-5 w-5" />}
             value={formatCurrency(43527)}
             label="Current balance"
             hasAreaChart={true}
@@ -170,6 +190,7 @@ const Dashboard = () => {
           />
         </motion.div>
       </div>
+
     </div>
   );
 };

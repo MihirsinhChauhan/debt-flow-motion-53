@@ -38,13 +38,13 @@ const getDebtIcon = (type: DebtType) => {
 
 const getDebtColor = (type: DebtType) => {
   const colors = {
-    credit_card: 'bg-red-100 text-red-700 border-red-200',
-    student_loan: 'bg-blue-100 text-blue-700 border-blue-200',
-    mortgage: 'bg-green-100 text-green-700 border-green-200',
-    personal_loan: 'bg-purple-100 text-purple-700 border-purple-200',
-    auto_loan: 'bg-gray-100 text-gray-700 border-gray-200',
-    family_loan: 'bg-pink-100 text-pink-700 border-pink-200',
-    other: 'bg-yellow-100 text-yellow-700 border-yellow-200'
+    credit_card: 'bg-destructive/10 text-destructive-foreground border-destructive/20',
+    student_loan: 'bg-primary/10 text-primary-foreground border-primary/20',
+    mortgage: 'bg-success/10 text-success-foreground border-success/20',
+    personal_loan: 'bg-secondary/10 text-secondary-foreground border-secondary/20',
+    auto_loan: 'bg-muted text-muted-foreground border-border',
+    family_loan: 'bg-accent/10 text-accent-foreground border-accent/20',
+    other: 'bg-warning/10 text-warning-foreground border-warning/20'
   };
   return colors[type] || colors.other;
 };
@@ -80,8 +80,8 @@ const EnhancedDebtCard: React.FC<EnhancedDebtCardProps> = ({ debt, onClick }) =>
                 <Icon className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">{debt.name}</h3>
-                <p className="text-sm text-gray-500">{debt.lender}</p>
+                <h3 className="font-semibold text-foreground">{debt.name}</h3>
+                <p className="text-sm text-muted-foreground">{debt.lender}</p>
               </div>
             </div>
             
@@ -112,17 +112,17 @@ const EnhancedDebtCard: React.FC<EnhancedDebtCardProps> = ({ debt, onClick }) =>
           {/* Balance and Progress */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-2xl font-bold text-gray-900">
+              <span className="text-2xl font-semibold text-foreground">
                 {formatCurrency(debt.current_balance)}
               </span>
               <div className="text-right">
-                <p className="text-sm text-gray-500">of {formatCurrency(debt.principal_amount)}</p>
+                <p className="text-sm text-muted-foreground">of {formatCurrency(debt.principal_amount)}</p>
                 <p className="text-xs text-green-600 font-medium">{progress.toFixed(1)}% paid</p>
               </div>
             </div>
 
             {/* Progress Bar */}
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-gradient-to-r from-finance-blue to-finance-lightBlue"
                 initial={{ width: 0 }}
@@ -135,9 +135,9 @@ const EnhancedDebtCard: React.FC<EnhancedDebtCardProps> = ({ debt, onClick }) =>
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center gap-2">
-              <Percent className="h-4 w-4 text-gray-400" />
+              <Percent className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-gray-500">Interest Rate</p>
+                <p className="text-xs text-muted-foreground">Interest Rate</p>
                 <p className="font-medium">
                   {debt.interest_rate}%
                   {debt.is_variable_rate && <span className="text-xs text-orange-600 ml-1">Variable</span>}
@@ -146,25 +146,25 @@ const EnhancedDebtCard: React.FC<EnhancedDebtCardProps> = ({ debt, onClick }) =>
             </div>
 
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
+              <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-gray-500">Due Date</p>
+                <p className="text-xs text-muted-foreground">Due Date</p>
                 <p className="font-medium">{formatDate(debt.due_date)}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-gray-400" />
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-gray-500">Min Payment</p>
+                <p className="text-xs text-muted-foreground">Min Payment</p>
                 <p className="font-medium">{formatCurrency(debt.minimum_payment)}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
+              <Calendar className="h-4 w-4 text-muted-foreground" />
               <div>
-                <p className="text-xs text-gray-500">Frequency</p>
+                <p className="text-xs text-muted-foreground">Frequency</p>
                 <p className="font-medium capitalize">{debt.payment_frequency.replace('_', ' ')}</p>
               </div>
             </div>
@@ -173,7 +173,7 @@ const EnhancedDebtCard: React.FC<EnhancedDebtCardProps> = ({ debt, onClick }) =>
           {/* Term Info */}
           {debt.remaining_term_months && (
             <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
                 <span>{debt.remaining_term_months} months remaining</span>
               </div>

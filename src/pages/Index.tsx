@@ -2,17 +2,21 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  TrendingDown, 
-  Target, 
-  Shield, 
+import { useAuth } from '@/context/AuthContext';
+import {
+  TrendingDown,
+  Target,
+  Shield,
   BarChart3,
   ArrowRight,
   CheckCircle,
-  Smartphone
+  Smartphone,
+  Bug
 } from 'lucide-react';
 
 const Index = () => {
+  const { user, debugAuth } = useAuth();
+
   const features = [
     {
       icon: <TrendingDown className="h-8 w-8 text-primary" />,
@@ -50,6 +54,30 @@ const Index = () => {
             <div className="text-2xl font-bold text-primary">DebtEase</div>
           </div>
           <div className="flex items-center space-x-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const debug = debugAuth();
+                alert(`Auth Status:\nUser: ${debug.user ? 'Logged in' : 'Not logged in'}\nToken: ${debug.hasToken ? 'Present' : 'Missing'}\nLoading: ${debug.isLoading}`);
+              }}
+              className="gap-2"
+            >
+              <Bug className="h-4 w-4" />
+              Debug Auth
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem('access_token');
+                alert('Authentication cleared! Refresh the page.');
+                window.location.reload();
+              }}
+              className="gap-2"
+            >
+              Clear Auth
+            </Button>
             <Link to="/auth">
               <Button variant="outline">Login</Button>
             </Link>

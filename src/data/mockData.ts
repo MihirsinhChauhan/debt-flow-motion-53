@@ -190,14 +190,14 @@ export const aiSuggestions = [
   {
     id: "s1",
     title: "Pay off high-interest debt first",
-    description: "Your Credit Card has an interest rate of 18.99%. Prioritize paying this off to save $320 in interest this year.",
+    description: "Your Credit Card has an interest rate of 18.99%. Prioritize paying this off to save ₹320 in interest this year.",
     savingsAmount: 320,
     type: "high_interest"
   },
   {
     id: "s2",
     title: "Consolidate student loans",
-    description: "You could save 1.2% APR by refinancing your student loan, saving approximately $144 per year.",
+    description: "You could save 1.2% APR by refinancing your student loan, saving approximately ₹144 per year.",
     savingsAmount: 144,
     type: "consolidation"
   },

@@ -1,432 +1,223 @@
-import React, { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingDown, Plus, Lightbulb, MoreHorizontal, Bell, TrendingUp } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { TrendingDown, AlertCircle, Loader2, ExternalLink, ChevronRight, Edit3, Calendar, MoreHorizontal } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { apiService } from '@/lib/api';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import AddDebtDialog from '@/components/debt/AddDebtDialog';
 import DebtProgressRing from '@/components/debt/DebtProgressRing';
-import DTIIndicator from '@/components/debt/DTIIndicator';
-import EnhancedDebtCard from '@/components/debt/EnhancedDebtCard';
-import AiSuggestionCard from '../AiSuggestionCard';
-import PaymentReminderCard from '../PaymentReminderCard';
-import { mockDebts, aiSuggestions, mockReminders } from '@/data/mockData';
-
-// Helper function for formatting currency
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
 
 const DebtWidget = () => {
-  const [reminders, setReminders] = useState(mockReminders);
-  const [isExpanded, setIsExpanded] = useState(false);
-  
-  // Calculate totals
-  const totalDebt = mockDebts.reduce((sum, debt) => sum + debt.current_balance, 0);
-  const totalOriginalDebt = mockDebts.reduce((sum, debt) => sum + debt.principal_amount, 0);
-  const progress = ((totalOriginalDebt - totalDebt) / totalOriginalDebt) * 100;
-  
-  // Sample user data
-  const monthlyIncome = 85000;
-  const totalDebtPayments = mockDebts.reduce((sum, debt) => sum + debt.minimum_payment, 0);
-  const housingPayments = 25000;
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [debts, setDebts] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleMarkAsPaid = (reminderId: string) => {
-    setReminders(reminders.filter(reminder => reminder.id !== reminderId));
+  const loadDebts = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const [debtResponse, summaryResponse] = await Promise.all([
+        apiService.getDebts(),
+        apiService.getDebtSummary().catch(() => null)
+      ]);
+      setDebts(debtResponse || []);
+      setSummary(summaryResponse);
+    } catch (err) {
+      console.error('Failed to load debts:', err);
+      setError('Unable to load debt information. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
+  useEffect(() => {
+    if (user) {
+      loadDebts();
+    }
+  }, [user]);
+
+  const handleAddDebt = (newDebt) => {
+    setDebts([...debts, newDebt]);
+    loadDebts(); // Refresh the debts list
   };
 
-  // Collapsed view content
-  const collapsedContent = (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500">Total Debt</p>
-          <p className="text-2xl font-semibold text-gray-900">{formatCurrency(totalDebt)}</p>
-        </div>
-        <DebtProgressRing 
-          progress={progress} 
-          size={80}
-          strokeWidth={8}
-          showPercentage={true}
-        />
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs text-gray-500">Monthly Payments</p>
-          <p className="text-lg font-medium">{formatCurrency(totalDebtPayments)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Debts</p>
-          <p className="text-lg font-medium">{mockDebts.length}</p>
-        </div>
-      </div>
-    </div>
-  );
+  const handleWidgetClick = () => {
+    navigate('/debt-details');
+  };
 
-  // Expanded view content
-  const expandedContent = (
-    <div className="h-[600px] flex flex-col">
-      <Tabs defaultValue="insights" className="h-full flex flex-col">
-        <TabsList className="grid w-full grid-cols-3 m-4 mb-0">
-          <TabsTrigger value="insights" className="text-xs">AI Insights</TabsTrigger>
-          <TabsTrigger value="debts" className="text-xs">Your Debts</TabsTrigger>
-          <TabsTrigger value="reminders" className="text-xs">Reminders</TabsTrigger>
-        </TabsList>
-        
-        <div className="flex-1 overflow-hidden">
-          <TabsContent value="insights" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-            <div className="p-4 flex-1 overflow-y-auto">
-              <div className="space-y-4">
-                {aiSuggestions.map((suggestion) => (
-                  <AiSuggestionCard key={suggestion.id} suggestion={suggestion} />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="debts" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-            <div className="p-4 flex-1 overflow-y-auto space-y-4">
-              {/* DTI Indicator */}
-              <DTIIndicator
-                monthlyIncome={monthlyIncome}
-                totalMonthlyDebtPayments={totalDebtPayments}
-                housingPayments={housingPayments}
-              />
-              
-              {/* Add Debt Button */}
-              <div className="flex justify-between items-center">
-                <h4 className="font-medium">Your Debts</h4>
-                <Button size="sm" variant="outline" className="gap-1">
-                  <Plus className="h-3 w-3" />
-                  Add Debt
-                </Button>
-              </div>
-              
-              {/* Debt List */}
-              <div className="space-y-3">
-                {mockDebts.map((debt) => (
-                  <EnhancedDebtCard key={debt.id} debt={debt} />
-                ))}
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="reminders" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-            <div className="p-4 flex-1 overflow-y-auto">
-              <div className="space-y-4">
-                {reminders.length > 0 ? (
-                  reminders.map((reminder) => (
-                    <PaymentReminderCard 
-                      key={reminder.id}
-                      reminder={reminder} 
-                      onMarkPaid={handleMarkAsPaid} 
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">No upcoming payments</p>
-                    <p className="text-sm text-gray-400">You're all caught up! 🎉</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
-    </div>
-  );
+  const handleDebtClick = (debt) => {
+    navigate(`/debt-details/${debt.id}`);
+  };
+
+  const totalDebt = summary?.total_debt || debts.reduce((sum, debt) => sum + (debt.current_balance || 0), 0);
+  const totalOriginal = debts.reduce((sum, debt) => sum + (debt.principal_amount || debt.amount || 0), 0);
+  const debtCount = debts.length;
+  const upcomingEMIs = summary?.upcomingPaymentsCount || 0;
+
+  // Calculate progress percentage (amount paid)
+  const progressPercentage = totalOriginal > 0 ? ((totalOriginal - totalDebt) / totalOriginal) * 100 : 0;
+
+  // Calculate debt health based on DTI and payment status
+  const getDebtHealth = () => {
+    if (debtCount === 0) return { label: 'No Debt', color: 'green' };
+    if (progressPercentage > 60) return { label: 'Excellent', color: 'green' };
+    if (progressPercentage > 30) return { label: 'Good', color: 'green' };
+    if (progressPercentage > 10) return { label: 'Fair', color: 'yellow' };
+    return { label: 'Needs Attention', color: 'red' };
+  };
+
+  const debtHealth = getDebtHealth();
+
+  // Get top 3 debts sorted by balance
+  const topDebts = debts
+    .sort((a, b) => (b.current_balance || 0) - (a.current_balance || 0))
+    .slice(0, 3)
+    .map(debt => ({
+      ...debt,
+      percentage: totalDebt > 0 ? ((debt.current_balance || 0) / totalDebt * 100) : 0
+    }));
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="w-full">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Loading debt information...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <>
-      {/* Collapsed View */}
-      {!isExpanded && (
-        <Card 
-          className="bg-white border border-fold-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer"
-          onClick={toggleExpanded}
-        >
-          <CardContent className="p-4">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-fold-gray-100">
-                  <TrendingDown className="h-5 w-5 text-fold-gray-600" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-fold-gray-900">Debts</h3>
-                </div>
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card
+        className="w-full cursor-pointer bg-card border-0 shadow-sm hover:shadow-md transition-all duration-200"
+        onClick={handleWidgetClick}
+      >
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-muted-foreground">
+                <TrendingDown className="h-5 w-5" />
               </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-fold-gray-100">
-                <MoreHorizontal className="h-4 w-4 text-fold-gray-400" />
+              <div>
+                <h3 className="text-base font-medium text-foreground">Debt Analysis</h3>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent className="pt-0">
+          {error ? (
+            <div className="text-center py-8">
+              <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-3" />
+              <p className="text-red-600 mb-2">{error}</p>
+              <Button onClick={loadDebts} variant="outline" size="sm">
+                Try Again
               </Button>
             </div>
-
-            {/* Collapsed Content */}
-            <div className="space-y-4">
+          ) : debtCount === 0 ? (
+            <div className="text-center py-8">
+              <TrendingDown className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground mb-2">No debts found</p>
+              <p className="text-sm text-muted-foreground">Add your first debt to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Main Stats Section */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-fold-gray-500">Total Debt</p>
-                  <p className="text-2xl font-semibold text-fold-gray-900">{formatCurrency(totalDebt)}</p>
+                  <div className="text-sm text-muted-foreground mb-1">Total Outstanding Debt</div>
+                  <div className="text-3xl font-semibold text-foreground">{formatCurrency(totalDebt)}</div>
+                  <Badge
+                    className={`mt-2 ${
+                      debtHealth.color === 'green' ? 'bg-success/10 text-success-foreground border-success/20' :
+                      debtHealth.color === 'yellow' ? 'bg-warning/10 text-warning-foreground border-warning/20' :
+                      'bg-destructive/10 text-destructive-foreground border-destructive/20'
+                    }`}
+                    variant="outline"
+                  >
+                    Debt Health: {debtHealth.label}
+                  </Badge>
                 </div>
-                <DebtProgressRing 
-                  progress={progress} 
-                  size={80}
-                  strokeWidth={8}
-                  showPercentage={true}
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-fold-gray-500">Monthly Payments</p>
-                  <p className="text-lg font-medium text-fold-gray-900">{formatCurrency(totalDebtPayments)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-fold-gray-500">Debts</p>
-                  <p className="text-lg font-medium text-fold-gray-900">{mockDebts.length}</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Expanded View - Full Screen Overlay */}
-      {isExpanded && (
-        <div className="fixed inset-0 bg-white z-50 overflow-hidden">
-          {/* Header */}
-          <div className="border-b border-fold-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={toggleExpanded}
-                  className="p-2"
-                >
-                  ←
-                </Button>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-fold-gray-100">
-                    <TrendingDown className="h-5 w-5 text-fold-gray-600" />
-                  </div>
-                  <h3 className="font-medium text-fold-gray-900">Debts</h3>
+                <div className="flex flex-col items-center">
+                  <DebtProgressRing
+                    progress={progressPercentage}
+                    size={100}
+                    strokeWidth={6}
+                    showPercentage={true}
+                  />
+                  <div className="text-xs text-muted-foreground mt-1">paid</div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Tabs */}
-          <div className="h-full flex flex-col">
-            <Tabs defaultValue="insights" className="h-full flex flex-col">
-              <TabsList className="grid w-full grid-cols-3 mx-6 mt-4 mb-0">
-                <TabsTrigger value="insights">AI Insights</TabsTrigger>
-                <TabsTrigger value="debts">Your Debts</TabsTrigger>
-                <TabsTrigger value="reminders">Reminders</TabsTrigger>
-              </TabsList>
-              
-              <div className="flex-1 overflow-hidden">
-                <TabsContent value="insights" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-                  <div className="p-4 md:p-6 flex-1 overflow-y-auto">
-                    <div className="space-y-4 md:space-y-6">
-                      {/* Key Metrics Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                        <Card className="bg-gradient-to-br from-fold-blue-600 to-fold-blue-500 text-white">
-                          <CardContent className="p-4">
-                            <div className="text-lg md:text-xl font-semibold mb-1">Debt Analysis</div>
-                            <div className="text-2xl md:text-3xl font-bold">6.5%</div>
-                            <p className="text-xs md:text-sm opacity-90">Average Interest Rate</p>
-                            <div className="mt-4 flex justify-between items-end">
-                              <div className="text-xs opacity-75">Based on {mockDebts.length} active debts</div>
-                              <TrendingUp size={20} className="md:hidden" />
-                              <TrendingUp size={24} className="hidden md:block" />
-                            </div>
-                          </CardContent>
-                        </Card>
-                        
-                        <Card>
-                          <CardContent className="p-4">
-                            <div className="text-lg md:text-xl font-semibold mb-1 text-fold-gray-900">Potential Savings</div>
-                            <div className="text-2xl md:text-3xl font-bold text-fold-success-600">{formatCurrency(490)}</div>
-                            <p className="text-xs md:text-sm text-fold-gray-500">If you follow all recommendations</p>
-                            <div className="mt-4 flex justify-between items-end">
-                              <div className="text-xs text-fold-gray-400">Annual interest savings</div>
-                              <div className="p-1 rounded-full bg-fold-success-100">
-                                <Lightbulb size={16} className="text-fold-success-600 md:hidden" />
-                                <Lightbulb size={20} className="text-fold-success-600 hidden md:block" />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                        
-                        <Card className="sm:col-span-2 lg:col-span-1">
-                          <CardContent className="p-4">
-                            <div className="text-lg md:text-xl font-semibold mb-1 text-fold-gray-900">Debt Freedom</div>
-                            <div className="text-2xl md:text-3xl font-bold text-fold-gray-900">4.8 years</div>
-                            <p className="text-xs md:text-sm text-fold-gray-500">Estimated time to debt-free</p>
-                            <div className="mt-4 flex justify-between items-end">
-                              <div className="text-xs text-fold-gray-400">With current payment strategy</div>
-                              <div className="p-1 rounded-full bg-fold-gray-100">
-                                <TrendingDown size={16} className="text-fold-gray-600 md:hidden" />
-                                <TrendingDown size={20} className="text-fold-gray-600 hidden md:block" />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-                      
-                      {/* Optimized Repayment Plan */}
-                      <Card>
-                        <CardContent className="p-4 md:p-6">
-                          <div className="mb-4 md:mb-6">
-                            <h2 className="text-lg md:text-xl font-semibold mb-2 text-fold-gray-900">Optimized Repayment Plan</h2>
-                            <p className="text-sm md:text-base text-fold-gray-600">Our AI recommends this payment schedule to minimize interest</p>
-                          </div>
-                          
-                          <div className="space-y-4 md:space-y-6">
-                            <div className="border-b border-fold-gray-200 pb-4">
-                              <h3 className="font-medium mb-3 md:mb-4 text-fold-gray-900">Step 1: Focus on High Interest Debt</h3>
-                              <div className="relative pl-4 md:pl-6 ml-2 md:ml-4 border-l-2 border-fold-gray-200">
-                                <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-fold-blue-600 rounded-full -left-[7px] md:-left-[9px] top-1"></div>
-                                <p className="font-semibold text-sm md:text-base text-fold-gray-900">Credit Card ({formatCurrency(3200)} remaining)</p>
-                                <p className="text-xs md:text-sm text-fold-gray-600 mt-1">
-                                  Pay {formatCurrency(350)}/month (additional {formatCurrency(200)} to minimum) to eliminate this debt in 10 months and save {formatCurrency(320)} in interest.
-                                </p>
-                              </div>
-                            </div>
-                            
-                            <div className="border-b border-fold-gray-200 pb-4">
-                              <h3 className="font-medium mb-3 md:mb-4 text-fold-gray-900">Step 2: Pay off Personal Loans</h3>
-                              <div className="space-y-3 md:space-y-4">
-                                <div className="relative pl-4 md:pl-6 ml-2 md:ml-4 border-l-2 border-fold-gray-200">
-                                  <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-fold-gray-300 rounded-full -left-[7px] md:-left-[9px] top-1"></div>
-                                  <p className="font-semibold text-sm md:text-base text-fold-gray-900">Family Loan ({formatCurrency(1200)} remaining)</p>
-                                  <p className="text-xs md:text-sm text-fold-gray-600 mt-1">
-                                    Maintain {formatCurrency(500)}/month payments to clear this debt in just over 2 months.
-                                  </p>
-                                </div>
-                                <div className="relative pl-4 md:pl-6 ml-2 md:ml-4 border-l-2 border-fold-gray-200">
-                                  <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-fold-gray-300 rounded-full -left-[7px] md:-left-[9px] top-1"></div>
-                                  <p className="font-semibold text-sm md:text-base text-fold-gray-900">Car Loan ({formatCurrency(10500)} remaining)</p>
-                                  <p className="text-xs md:text-sm text-fold-gray-600 mt-1">
-                                    After Credit Card is paid off, add {formatCurrency(200)}/month to your car payment to pay it off faster.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="pb-4">
-                              <h3 className="font-medium mb-3 md:mb-4 text-fold-gray-900">Step 3: Target Long-term Debts</h3>
-                              <div className="space-y-3 md:space-y-4">
-                                <div className="relative pl-4 md:pl-6 ml-2 md:ml-4 border-l-2 border-fold-gray-200">
-                                  <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-fold-gray-300 rounded-full -left-[7px] md:-left-[9px] top-1"></div>
-                                  <p className="font-semibold text-sm md:text-base text-fold-gray-900">Student Loan ({formatCurrency(12000)} remaining)</p>
-                                  <p className="text-xs md:text-sm text-fold-gray-600 mt-1">
-                                    Consider refinancing to lower your rate, then allocate additional funds after previous debts are paid.
-                                  </p>
-                                </div>
-                                <div className="relative pl-4 md:pl-6 ml-2 md:ml-4">
-                                  <div className="absolute w-3 h-3 md:w-4 md:h-4 bg-fold-gray-300 rounded-full -left-[7px] md:-left-[9px] top-1"></div>
-                                  <p className="font-semibold text-sm md:text-base text-fold-gray-900">Home Mortgage ({formatCurrency(320000)} remaining)</p>
-                                  <p className="text-xs md:text-sm text-fold-gray-600 mt-1">
-                                    Continue regular payments while focusing on higher-interest debts.
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      {/* Recommended Actions */}
-                      <Card>
-                        <CardContent className="p-4 md:p-6">
-                          <h2 className="text-lg md:text-xl font-semibold mb-4 text-fold-gray-900">Recommended Actions</h2>
-                          <div className="space-y-3">
-                            {aiSuggestions.map((suggestion, index) => (
-                              <div key={suggestion.id} className="flex p-3 md:p-4 rounded-lg bg-fold-gray-50 hover:bg-fold-gray-100 transition-colors">
-                                <div className="mr-3 md:mr-4 bg-fold-blue-100 text-fold-blue-800 h-5 w-5 md:h-6 md:w-6 flex items-center justify-center rounded-full font-semibold text-xs md:text-sm">
-                                  {index + 1}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <h3 className="font-semibold text-sm md:text-base text-fold-gray-900">{suggestion.title}</h3>
-                                  <p className="text-xs md:text-sm text-fold-gray-600 mt-0.5">{suggestion.description}</p>
-                                </div>
-                                <Button variant="ghost" size="sm" className="self-start shrink-0 text-xs md:text-sm">
-                                  Apply
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="debts" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-                  <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                    {/* DTI Indicator */}
-                    <DTIIndicator
-                      monthlyIncome={monthlyIncome}
-                      totalMonthlyDebtPayments={totalDebtPayments}
-                      housingPayments={housingPayments}
-                    />
-                    
-                    {/* Add Debt Button */}
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Your Debts</h4>
-                      <Button size="sm" variant="outline" className="gap-1">
-                        <Plus className="h-3 w-3" />
-                        Add Debt
-                      </Button>
-                    </div>
-                    
-                    {/* Debt List */}
-                    <div className="space-y-3">
-                      {mockDebts.map((debt) => (
-                        <EnhancedDebtCard key={debt.id} debt={debt} />
-                      ))}
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="reminders" className="h-full m-0 data-[state=active]:flex data-[state=active]:flex-col">
-                  <div className="p-6 flex-1 overflow-y-auto">
-                    <div className="space-y-4">
-                      {reminders.length > 0 ? (
-                        reminders.map((reminder) => (
-                          <PaymentReminderCard 
-                            key={reminder.id}
-                            reminder={reminder} 
-                            onMarkPaid={handleMarkAsPaid} 
-                          />
-                        ))
-                      ) : (
-                        <div className="text-center py-8">
-                          <Bell className="h-12 w-12 text-fold-gray-300 mx-auto mb-3" />
-                          <p className="text-fold-gray-500">No upcoming payments</p>
-                          <p className="text-sm text-fold-gray-400">You're all caught up! 🎉</p>
+              {/* Top 3 Debts Section */}
+              <div>
+                <div className="text-sm font-medium text-foreground mb-3">Top 3 Debts:</div>
+                <div className="space-y-2">
+                  {topDebts.map((debt, index) => (
+                    <div
+                      key={debt.id || index}
+                      className="flex justify-between items-center py-2 border-b border-border last:border-b-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDebtClick(debt);
+                      }}
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground">
+                          {debt.name || 'Unnamed Debt'}
                         </div>
-                      )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-foreground">
+                          {formatCurrency(debt.current_balance || 0)} ({debt.percentage.toFixed(0)}%)
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </TabsContent>
+                  ))}
+                </div>
               </div>
-            </Tabs>
-          </div>
-        </div>
-      )}
-    </>
+
+              {/* Upcoming EMIs Section */}
+              <div className="text-center pt-4 border-t border-border">
+                <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-sm">Upcoming EMIs:</span>
+                </div>
+                <div className="text-2xl font-semibold text-foreground mt-1">
+                  {upcomingEMIs} this week
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 };
 

@@ -1,28 +1,87 @@
 
-import React, { useState } from 'react';
-import { 
-  Calendar as CalendarIcon, 
-  Bell, 
-  CheckCircle, 
+import React, { useState, useEffect } from 'react';
+import {
+  Calendar as CalendarIcon,
+  Bell,
+  CheckCircle,
   CalendarDays,
-  PlusCircle
+  PlusCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { mockDebts, mockReminders } from '@/data/mockData';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import PaymentConfetti from '@/components/celebrations/PaymentConfetti';
 import { toast } from '@/hooks/use-toast';
+import { apiService } from '@/lib/api';
+import { Debt } from '@/types/debt';
+import { useAuth } from '@/context/AuthContext';
+
+interface Reminder {
+  id: string;
+  debtId: string;
+  dueDate: string;
+  amount: number;
+  message: string;
+  isPast: boolean;
+  isToday: boolean;
+}
 
 const Reminders = () => {
-  const [reminders, setReminders] = useState(mockReminders);
+  const { user } = useAuth();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
-  
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   // Get today's date for highlighting
   const today = new Date();
-  
+
   // Format date as YYYY-MM-DD for comparison
   const formattedToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // Load data on component mount
+  useEffect(() => {
+    if (user) {
+      loadRemindersData();
+    }
+  }, [user]);
+
+  const loadRemindersData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Load debts from API
+      const debtsData = await apiService.getDebts();
+
+      setDebts(debtsData);
+
+      // Generate reminders from debts (debts due soon)
+      const upcomingReminders = debtsData
+        .filter(debt => debt.due_date && debt.days_past_due >= -7 && debt.days_past_due <= 7)
+        .map(debt => ({
+          id: debt.id,
+          debtId: debt.id,
+          dueDate: debt.due_date,
+          amount: debt.minimum_payment,
+          message: debt.days_past_due < 0
+            ? `${debt.name} payment due in ${Math.abs(debt.days_past_due)} days`
+            : `${debt.name} payment was due ${debt.days_past_due} days ago`,
+          isPast: debt.days_past_due > 0,
+          isToday: debt.days_past_due === 0
+        }));
+
+      setReminders(upcomingReminders);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load reminders data');
+      console.error('Error loading reminders data:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleMarkAsPaid = (reminderId: string) => {
     // Mark as paid logic
@@ -45,7 +104,7 @@ const Reminders = () => {
     
     acc[monthYear].push(reminder);
     return acc;
-  }, {} as Record<string, typeof mockReminders>);
+  }, {} as Record<string, typeof reminders>);
 
   return (
     <div className="space-y-6">
@@ -78,14 +137,26 @@ const Reminders = () => {
           </div>
           
           <div className="space-y-8">
-            {Object.entries(groupedReminders).length > 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading reminders...</span>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <p className="text-red-500 mb-4">{error}</p>
+                <Button onClick={loadRemindersData} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            ) : Object.entries(groupedReminders).length > 0 ? (
               Object.entries(groupedReminders).map(([monthYear, monthReminders]) => (
                 <div key={monthYear}>
                   <h3 className="font-medium text-gray-500 mb-4">{monthYear}</h3>
                   <div className="space-y-4">
                     {monthReminders.map(reminder => {
                       // Find the associated debt
-                      const debt = mockDebts.find(d => d.id === reminder.debtId);
+                      const debt = debts.find(d => d.id === reminder.debtId);
                       const isDueToday = reminder.dueDate === formattedToday;
                       
                       return (

@@ -3,8 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { useMemo } from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { OnboardingProvider, useOnboarding } from "@/context/OnboardingContext";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -14,35 +16,57 @@ import Dashboard from "./pages/Dashboard";
 import Insights from "./pages/Insights";
 import Reminders from "./pages/Reminders";
 import Security from "./pages/Security";
+import DebtDetailView from "./pages/DebtDetailView";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-primary mb-2">DebtEase</div>
-          <div className="text-muted-foreground">Loading...</div>
-        </div>
+const ProtectedRoute = React.memo(({ children }: { children: React.ReactNode }) => {
+  const { user, isLoading: authLoading } = useAuth();
+  const { isCompleted, isLoading: onboardingLoading, currentStep } = useOnboarding();
+
+  // Memoize loading components to prevent unnecessary re-renders
+  const authLoadingComponent = useMemo(() => (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-2xl font-bold text-primary mb-2">DebtEase</div>
+        <div className="text-muted-foreground">Loading...</div>
       </div>
-    );
+    </div>
+  ), []);
+
+  const onboardingLoadingComponent = useMemo(() => (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-2xl font-bold text-primary mb-2">DebtEase</div>
+        <div className="text-muted-foreground">Checking onboarding status...</div>
+      </div>
+    </div>
+  ), []);
+
+  // Early returns for loading states
+  if (authLoading) {
+    return authLoadingComponent;
   }
-  
+
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Check if user needs onboarding
-  const currentUser = JSON.parse(localStorage.getItem('debtease_user') || '{}');
-  if (!currentUser.onboarding_completed) {
+  // Only redirect to onboarding if we're sure the user hasn't completed it
+  // Wait for onboarding status to load first
+  if (onboardingLoading) {
+    return onboardingLoadingComponent;
+  }
+
+  // Check if user needs onboarding - also check currentStep to avoid race conditions
+  if (!isCompleted && currentStep !== 'completed') {
+    console.log('ProtectedRoute: Redirecting to onboarding - isCompleted:', isCompleted, 'currentStep:', currentStep);
     return <Navigate to="/onboarding" replace />;
   }
-  
+
+  console.log('ProtectedRoute: Allowing access to protected route - isCompleted:', isCompleted, 'currentStep:', currentStep);
   return <>{children}</>;
-};
+});
 
 const AppContent = () => {
   const { user } = useAuth();
@@ -85,6 +109,16 @@ const AppContent = () => {
             </AppLayout>
           </ProtectedRoute>
         } />
+        <Route path="/debt-details" element={
+          <ProtectedRoute>
+            <DebtDetailView />
+          </ProtectedRoute>
+        } />
+        <Route path="/debt-details/:debtId" element={
+          <ProtectedRoute>
+            <DebtDetailView />
+          </ProtectedRoute>
+        } />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
@@ -95,11 +129,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AppContent />
-        </TooltipProvider>
+        <OnboardingProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AppContent />
+          </TooltipProvider>
+        </OnboardingProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

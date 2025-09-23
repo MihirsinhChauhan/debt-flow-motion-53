@@ -19,6 +19,7 @@ export interface Debt {
   is_tax_deductible: boolean;
   payment_frequency: PaymentFrequency;
   is_high_priority: boolean;
+  is_active?: boolean;
   days_past_due: number;
   notes?: string;
   created_at?: string;
@@ -86,4 +87,59 @@ export interface DTIMetrics {
   total_monthly_debt_payments: number;
   monthly_income: number;
   is_healthy: boolean;
+}
+
+// Onboarding types
+export type OnboardingStep =
+  | 'welcome'
+  | 'profile_setup'
+  | 'debt_collection'
+  | 'goal_setting'
+  | 'dashboard_intro'
+  | 'completed';
+
+export type FinancialExperience = 'beginner' | 'intermediate' | 'advanced';
+export type EmploymentStatus = 'employed' | 'self_employed' | 'unemployed' | 'retired' | 'student';
+export type IncomeFrequency = 'weekly' | 'biweekly' | 'monthly' | 'annually';
+
+export interface OnboardingProfileData {
+  monthly_income?: number;
+  income_frequency?: IncomeFrequency;
+  employment_status?: EmploymentStatus;
+  financial_experience?: FinancialExperience;
+}
+
+export interface OnboardingDebtData {
+  debts_added?: number;
+  total_debt_amount?: number;
+  debt_types?: string[];
+  skip_debt_entry?: boolean;
+}
+
+export interface OnboardingGoalData {
+  goal_type?: string;
+  target_amount?: number;
+  target_date?: string;
+  preferred_strategy?: string;
+  monthly_extra_payment?: number;
+  priority_level?: number;
+  description?: string;
+}
+
+export interface OnboardingData {
+  profile?: OnboardingProfileData;
+  debts?: OnboardingDebtData;
+  goals?: OnboardingGoalData;
+}
+
+export interface OnboardingProgress {
+  id?: string | null;
+  user_id: string;
+  current_step: OnboardingStep;
+  completed_steps: string[];
+  onboarding_data: OnboardingData;
+  is_completed: boolean;
+  progress_percentage: number;
+  started_at?: string | null;
+  completed_at?: string | null;
 }

@@ -104,28 +104,28 @@ const WidgetCard = ({
   );
 
   return (
-    <Card 
-      className={`bg-white border border-fold-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer ${className}`}
+    <Card
+      className={`bg-card border-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer ${className}`}
       onClick={onClick}
     >
-      <CardContent className="p-4">
+      <CardContent className="p-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-fold-gray-100">
+            <div className="text-muted-foreground">
               {icon}
             </div>
             <div>
-              <h3 className="font-medium text-fold-gray-900">{title}</h3>
+              <h3 className="text-base font-medium text-foreground">{title}</h3>
               {subtitle && (
-                <p className="text-xs text-fold-gray-500 uppercase tracking-wide">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mt-0.5">
                   {subtitle}
                 </p>
               )}
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-fold-gray-100">
-            <MoreHorizontal className="h-4 w-4 text-fold-gray-400" />
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
           </Button>
         </div>
 
@@ -133,11 +133,11 @@ const WidgetCard = ({
         <div className="space-y-4">
           {/* Simple value display */}
           {value && !flowData && !spendingData && (
-            <div>
-              <div className="text-2xl font-bold text-fold-gray-900">{value}</div>
+            <div className="mb-4">
               {label && (
-                <div className="text-sm text-fold-gray-500">{label}</div>
+                <div className="text-sm text-muted-foreground mb-1">{label}</div>
               )}
+              <div className="text-3xl font-semibold text-foreground">{value}</div>
             </div>
           )}
 
@@ -156,10 +156,10 @@ const WidgetCard = ({
             <div className="grid grid-cols-2 gap-4 text-xs">
               {metrics.map((metric, index) => (
                 <div key={index}>
-                  <div className="text-fold-gray-500 uppercase tracking-wide">
+                  <div className="text-muted-foreground uppercase tracking-wide">
                     {metric.label}
                   </div>
-                  <div className="font-semibold text-fold-gray-900">
+                  <div className="font-semibold text-foreground">
                     {metric.value}
                   </div>
                 </div>
@@ -171,26 +171,26 @@ const WidgetCard = ({
           {flowData && (
             <div className="space-y-3">
               <div>
-                <div className="text-sm text-fold-gray-500 mb-1">Incoming</div>
-                <div className="text-xl font-bold text-fold-gray-900">
+                <div className="text-sm text-muted-foreground mb-1">Incoming</div>
+                <div className="text-xl font-semibold text-foreground">
                   +{formatCurrency(flowData.incoming)}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-fold-gray-500 mb-1">Outgoing</div>
-                <div className="text-xl font-bold text-fold-gray-900">
+                <div className="text-sm text-muted-foreground mb-1">Outgoing</div>
+                <div className="text-xl font-semibold text-foreground">
                   {formatCurrency(flowData.outgoing)}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-fold-gray-500 mb-1">Invested</div>
-                <div className="text-xl font-bold text-fold-gray-900">
+                <div className="text-sm text-muted-foreground mb-1">Invested</div>
+                <div className="text-xl font-semibold text-foreground">
                   {formatCurrency(flowData.invested)}
                 </div>
               </div>
               <div>
-                <div className="text-sm text-fold-gray-500 mb-1">Left</div>
-                <div className="text-xl font-bold text-fold-gray-900">
+                <div className="text-sm text-muted-foreground mb-1">Left</div>
+                <div className="text-xl font-semibold text-foreground">
                   {formatCurrency(flowData.left)}
                 </div>
               </div>
@@ -203,10 +203,10 @@ const WidgetCard = ({
               {spendingData.map((item, index) => (
                 <div key={index} className="flex justify-between items-center py-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-fold-gray-300"></div>
-                    <span className="text-sm text-fold-gray-700">{item.category}</span>
+                    <div className="w-3 h-3 rounded-full bg-muted"></div>
+                    <span className="text-sm text-muted-foreground">{item.category}</span>
                   </div>
-                  <span className="text-sm font-medium text-fold-gray-900">
+                  <span className="text-sm font-medium text-foreground">
                     {formatCurrency(item.amount)}
                   </span>
                 </div>

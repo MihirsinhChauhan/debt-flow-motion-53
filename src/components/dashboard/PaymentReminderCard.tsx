@@ -31,9 +31,15 @@ const PaymentReminderCard = ({ reminder, onMarkPaid }: PaymentReminderCardProps)
   const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   
   const getStatusClass = () => {
-    if (reminder.isPast) return "bg-red-50 border-red-200";
-    if (reminder.isToday) return "bg-yellow-50 border-yellow-200";
-    return "bg-blue-50 border-blue-200";
+    if (reminder.isPast) return "bg-destructive/5 border-destructive/20";
+    if (reminder.isToday) return "bg-warning/5 border-warning/20";
+    return "bg-primary/5 border-primary/20";
+  };
+
+  const getStatusColor = () => {
+    if (reminder.isPast) return "text-destructive";
+    if (reminder.isToday) return "text-warning";
+    return "text-primary";
   };
 
   const getDueDateText = () => {
@@ -44,26 +50,37 @@ const PaymentReminderCard = ({ reminder, onMarkPaid }: PaymentReminderCardProps)
   };
 
   return (
-    <Card className={`border ${getStatusClass()} animate-fade-in`}>
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-500" />
-            <span className="text-sm font-medium">{getDueDateText()}</span>
+    <Card className={`border ${getStatusClass()} animate-fade-in w-full`}>
+      <CardContent className="p-4 sm:p-6">
+        {/* Mobile-first header */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-3">
+            <Calendar className={`h-5 w-5 ${getStatusColor()}`} />
+            <div>
+              <span className={`text-mobile-body sm:text-base font-semibold ${getStatusColor()}`}>
+                {getDueDateText()}
+              </span>
+            </div>
           </div>
-          <div className="text-sm font-semibold">{formatCurrency(reminder.amount)}</div>
+          <div className={`text-lg sm:text-xl font-bold ${getStatusColor()}`}>
+            {formatCurrency(reminder.amount)}
+          </div>
         </div>
-        
-        <p className="text-sm mt-2">{reminder.message}</p>
-        
-        <div className="mt-3 flex justify-end">
-          <Button 
-            variant="outline" 
-            size="sm" 
+
+        {/* Message */}
+        <p className="text-mobile-body text-muted-foreground mt-3 leading-relaxed">
+          {reminder.message}
+        </p>
+
+        {/* Action button - Full width on mobile */}
+        <div className="mt-4 pt-3 border-t border-border/30">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleMarkPaid}
-            className="gap-1.5 text-xs"
+            className="w-full sm:w-auto gap-2"
           >
-            <CheckCircle className="h-3.5 w-3.5" />
+            <CheckCircle className="h-4 w-4" />
             Mark as Paid
           </Button>
         </div>
