@@ -48,10 +48,12 @@ const DebtWidget = () => {
   };
 
   const handleWidgetClick = () => {
+    console.log('DebtWidget clicked - navigating to /debt-details');
     navigate('/debt-details');
   };
 
   const handleDebtClick = (debt) => {
+    console.log('Individual debt clicked:', debt.id);
     navigate(`/debt-details/${debt.id}`);
   };
 
@@ -111,8 +113,14 @@ const DebtWidget = () => {
       transition={{ duration: 0.2 }}
     >
       <Card
-        className="w-full cursor-pointer bg-card border-0 shadow-sm hover:shadow-md transition-all duration-200"
-        onClick={handleWidgetClick}
+        className="w-full cursor-pointer bg-card border-0 shadow-sm hover:shadow-md transition-all duration-200 hover:bg-accent/5"
+        onClick={(e) => {
+          console.log('Card clicked, target:', e.target, 'currentTarget:', e.currentTarget);
+          // Only handle the click if it wasn't on a nested interactive element
+          if (e.target === e.currentTarget || (!(e.target as Element).closest('button') && !(e.target as Element).closest('[role="button"]'))) {
+            handleWidgetClick();
+          }
+        }}
       >
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
@@ -212,6 +220,23 @@ const DebtWidget = () => {
                 <div className="text-2xl font-semibold text-foreground mt-1">
                   {upcomingEMIs} this week
                 </div>
+              </div>
+
+              {/* View Details Button */}
+              <div className="pt-4 border-t border-border">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-primary hover:text-primary hover:bg-primary/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleWidgetClick();
+                  }}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Debt Details
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
               </div>
             </div>
           )}

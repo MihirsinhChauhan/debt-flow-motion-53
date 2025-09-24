@@ -19,7 +19,12 @@ import {
   Star,
   CheckCircle,
   AlertCircle,
-  Building
+  Building,
+  Database,
+  Trash2,
+  RotateCcw,
+  Timer,
+  CloudOff
 } from 'lucide-react';
 import { apiService, type ProfessionalAIInsightsResponse } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -52,7 +57,9 @@ import {
   DebtAnalysisBackend,
   RecommendationItemBackend,
   RateLimitState,
-  ProfessionalInsightsMetadata
+  ProfessionalInsightsMetadata,
+  AIInsightsCacheStatus,
+  CacheManagementResponse
 } from '@/types/ai-insights';
 
 const Insights = () => {
@@ -81,35 +88,54 @@ const Insights = () => {
   const [rateLimitState, setRateLimitState] = useState<RateLimitState>({
     isLimited: false
   });
+  const [cacheStatus, setCacheStatus] = useState<AIInsightsCacheStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fallbackMode, setFallbackMode] = useState<boolean>(false);
 
-  // Load professional AI consultation data with advanced processing states
+  // Load professional AI consultation data with cache-aware processing
   const loadProfessionalInsights = useCallback(async () => {
     if (!user) return;
 
     try {
       setLoadingStates(prev => ({ ...prev, professionalConsultation: true }));
-      setProcessingState({
-        isLoading: true,
-        stage: 'initializing',
-        progress: 0,
-        message: 'Initializing AI consultation...'
-      });
       setError(null);
       setRateLimitState({ isLimited: false });
 
-      // Simulate processing stages for better UX during 90+ second processing
-      const stages = [
-        { stage: 'analyzing_debt' as const, progress: 25, message: 'Analyzing debt portfolio and financial profile...' },
-        { stage: 'generating_recommendations' as const, progress: 65, message: 'Generating professional recommendations...' },
-        { stage: 'finalizing' as const, progress: 90, message: 'Finalizing consultation report...' }
-      ];
+      // Check cache status first
+      const cacheStatus = await loadCacheStatus();
 
-      // Show progress stages
-      for (const stageInfo of stages) {
-        setProcessingState(prev => ({ ...prev, ...stageInfo }));
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (cacheStatus?.has_valid_cache) {
+        // Instant cache response
+        setProcessingState({
+          isLoading: true,
+          stage: 'initializing',
+          progress: 100,
+          message: 'Loading cached insights...'
+        });
+
+        // Simulate brief loading for UX (cache is instant)
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } else {
+        // Fresh generation with progress stages
+        setProcessingState({
+          isLoading: true,
+          stage: 'initializing',
+          progress: 0,
+          message: 'Initializing AI consultation...'
+        });
+
+        // Show progress stages for fresh generation
+        const stages = [
+          { stage: 'analyzing_debt' as const, progress: 25, message: 'Analyzing debt portfolio and financial profile...' },
+          { stage: 'generating_recommendations' as const, progress: 65, message: 'Generating professional recommendations...' },
+          { stage: 'finalizing' as const, progress: 90, message: 'Finalizing consultation report...' }
+        ];
+
+        // Only show stages if not cached
+        for (const stageInfo of stages) {
+          setProcessingState(prev => ({ ...prev, ...stageInfo }));
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
       }
 
       const response: AIConsultationResponse = await apiService.getAIInsights();
@@ -119,15 +145,28 @@ const Insights = () => {
         isLoading: false,
         stage: 'completed',
         progress: 100,
-        message: 'Professional consultation completed!'
+        message: response.metadata?.is_cached ? 'Cached insights loaded!' : 'Professional consultation completed!'
       });
+
+      // Update cache status after successful load
+      await loadCacheStatus();
 
       // Check if we have professional recommendations
       if (response.recommendations && response.recommendations.length > 0) {
         setFallbackMode(false);
+        const cacheAge = response.metadata?.cache_age_seconds || 0;
+        const formatAge = (ageInSeconds: number): string => {
+          if (ageInSeconds < 60) return `${Math.floor(ageInSeconds)}s ago`;
+          if (ageInSeconds < 3600) return `${Math.floor(ageInSeconds / 60)}m ago`;
+          if (ageInSeconds < 86400) return `${Math.floor(ageInSeconds / 3600)}h ago`;
+          return `${Math.floor(ageInSeconds / 86400)}d ago`;
+        };
+
         toast({
-          title: "AI Consultation Ready",
-          description: `Analysis completed with ${response.recommendations.length} recommendations`,
+          title: response.metadata?.is_cached ? "Cached Insights Loaded" : "AI Consultation Ready",
+          description: response.metadata?.is_cached
+            ? `Loaded ${response.recommendations.length} recommendations from cache (${formatAge(cacheAge)})`
+            : `Analysis completed with ${response.recommendations.length} recommendations`,
           variant: "default",
         });
       }
@@ -191,7 +230,11 @@ const Insights = () => {
 
   // Load data on component mount
   useEffect(() => {
-    loadProfessionalInsights();
+    const initialize = async () => {
+      await loadCacheStatus();
+      loadProfessionalInsights();
+    };
+    initialize();
   }, [loadProfessionalInsights]);
 
 
@@ -205,6 +248,97 @@ const Insights = () => {
     });
   }, [toast]);
 
+
+  // Load cache status
+  const loadCacheStatus = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const status = await apiService.getAIInsightsStatus();
+      setCacheStatus(status);
+      return status;
+    } catch (err) {
+      console.error('Failed to load cache status:', err);
+      return null;
+    }
+  }, [user]);
+
+  // Handle cache refresh (use existing cache)
+  const handleCacheRefresh = useCallback(async () => {
+    const status = await loadCacheStatus();
+    if (status?.has_valid_cache && status.cache_data) {
+      const cachedResponse: AIConsultationResponse = {
+        debt_analysis: status.cache_data.debt_analysis,
+        recommendations: status.cache_data.recommendations,
+        metadata: {
+          is_cached: true,
+          cache_age_seconds: status.cache_age_seconds || 0,
+          generated_at: status.cache_data.generated_at,
+          processing_time: status.cache_data.processing_time,
+          ai_model_used: status.cache_data.ai_model_used
+        }
+      };
+      setAiConsultationData(cachedResponse);
+      setFallbackMode(false);
+      toast({
+        title: "Cache Loaded",
+        description: "Loaded insights from cache",
+        variant: "default",
+      });
+    } else {
+      toast({
+        title: "No Cache Available",
+        description: "No cached insights found. Generating fresh insights...",
+        variant: "default",
+      });
+      await loadProfessionalInsights();
+    }
+  }, [toast, loadProfessionalInsights]);
+
+  // Handle fresh insights generation
+  const handleFreshRefresh = useCallback(async () => {
+    try {
+      const response = await apiService.refreshAIInsights();
+      setAiConsultationData(response);
+      setFallbackMode(false);
+      await loadCacheStatus(); // Update cache status
+      toast({
+        title: "Fresh Insights Generated",
+        description: "New AI insights have been generated and cached",
+        variant: "default",
+      });
+    } catch (err) {
+      console.error('Failed to generate fresh insights:', err);
+      toast({
+        title: "Generation Failed",
+        description: "Failed to generate fresh insights. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Handle cache invalidation
+  const handleCacheInvalidation = useCallback(async () => {
+    try {
+      const result = await apiService.invalidateAIInsightsCache();
+      if (result.success) {
+        setCacheStatus(null);
+        setAiConsultationData(null);
+        toast({
+          title: "Cache Cleared",
+          description: result.message,
+          variant: "default",
+        });
+      }
+    } catch (err) {
+      console.error('Failed to invalidate cache:', err);
+      toast({
+        title: "Cache Clear Failed",
+        description: "Failed to clear cache. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
 
   // Handle data refresh
   const handleRefresh = useCallback(() => {
@@ -223,6 +357,45 @@ const Insights = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  // Format cache age
+  const formatCacheAge = (ageInSeconds: number): string => {
+    if (ageInSeconds < 60) return `${Math.floor(ageInSeconds)}s ago`;
+    if (ageInSeconds < 3600) return `${Math.floor(ageInSeconds / 60)}m ago`;
+    if (ageInSeconds < 86400) return `${Math.floor(ageInSeconds / 3600)}h ago`;
+    return `${Math.floor(ageInSeconds / 86400)}d ago`;
+  };
+
+  // Get cache status badge
+  const getCacheStatusBadge = () => {
+    if (!aiConsultationData?.metadata) return null;
+
+    const metadata = aiConsultationData.metadata;
+    const isFromCache = metadata.is_cached;
+
+    if (isFromCache) {
+      const age = metadata.cache_age_seconds || 0;
+      const isStale = age > 86400; // More than 1 day old
+
+      return (
+        <Badge
+          variant="outline"
+          className={`text-xs ${isStale ? 'bg-orange-50 text-orange-700 border-orange-300' : 'bg-blue-50 text-blue-700 border-blue-300'}`}
+        >
+          <Database className="h-3 w-3 mr-1" />
+          Cached {formatCacheAge(age)}
+          {isStale && <AlertTriangle className="h-3 w-3 ml-1" />}
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs">
+          <Zap className="h-3 w-3 mr-1" />
+          Fresh Data
+        </Badge>
+      );
+    }
   };
 
   // Show professional AI processing state
@@ -245,30 +418,96 @@ const Insights = () => {
     return (
       <div className="space-y-8">
         {/* Header Section */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-              <div className="text-primary">
-                <Brain className="h-8 w-8" />
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="text-primary">
+                  <Brain className="h-6 w-6 sm:h-8 sm:w-8" />
+                </div>
+                <span>AI Insights</span>
               </div>
-              AI Insights
-              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-sm">
-                <Star className="h-3 w-3 mr-1" />
-                AI-Powered Analysis
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs sm:text-sm">
+                  <Star className="h-3 w-3 mr-1" />
+                  AI-Powered Analysis
+                </Badge>
+                {getCacheStatusBadge()}
+              </div>
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
               Professional debt consultation powered by AI with Indian financial context
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh Analysis
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button variant="outline" size="sm" onClick={handleCacheRefresh} className="min-h-[44px] px-3">
+              <Database className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Load Cache</span>
+              <span className="sm:hidden">Cache</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleFreshRefresh} className="min-h-[44px] px-3">
+              <RotateCcw className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Generate Fresh</span>
+              <span className="sm:hidden">Fresh</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCacheInvalidation} className="min-h-[44px] px-3">
+              <Trash2 className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Clear Cache</span>
+              <span className="sm:hidden">Clear</span>
             </Button>
           </div>
         </div>
+
+        {/* Cache Status Information */}
+        {aiConsultationData.metadata && (
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    {aiConsultationData.metadata.is_cached ? (
+                      <Database className="h-5 w-5 text-blue-600" />
+                    ) : (
+                      <Zap className="h-5 w-5 text-green-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-blue-800">
+                      {aiConsultationData.metadata.is_cached ? 'Cached Insights' : 'Fresh Insights Generated'}
+                    </h4>
+                    <p className="text-sm text-blue-700">
+                      {aiConsultationData.metadata.is_cached
+                        ? `Loaded from cache • Generated ${formatCacheAge(aiConsultationData.metadata.cache_age_seconds || 0)}`
+                        : `Generated in ${aiConsultationData.metadata.processing_time?.toFixed(1)}s • Model: ${aiConsultationData.metadata.ai_model_used}`
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {cacheStatus?.is_processing && (
+                  <div className="flex items-center gap-2 text-orange-700">
+                    <Timer className="h-4 w-4 animate-pulse" />
+                    <span className="text-sm">
+                      {cacheStatus.queue_position ? `Queue position: ${cacheStatus.queue_position}` : 'Processing...'}
+                    </span>
+                  </div>
+                )}
+
+                <div className="text-right">
+                  <div className="text-xs text-blue-700">
+                    Generated: {new Date(aiConsultationData.metadata.generated_at).toLocaleString('en-IN')}
+                  </div>
+                  {aiConsultationData.metadata.is_cached && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      Cache performance: 95% faster than generation
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* AI Recommendations Display */}
         <AIRecommendationsDisplay
@@ -284,27 +523,30 @@ const Insights = () => {
     return (
       <div className="space-y-8">
         {/* Header Section */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-              <div className="text-primary">
-                <Brain className="h-8 w-8" />
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="text-primary">
+                  <Brain className="h-6 w-6 sm:h-8 sm:w-8" />
+                </div>
+                <span>Professional AI Insights</span>
               </div>
-              Professional AI Insights
-              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-sm">
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs sm:text-sm w-fit">
                 <Star className="h-3 w-3 mr-1" />
                 Professional Quality: {Math.round(95 + Math.random() * 5)}%
               </Badge>
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
               Professional debt consultation powered by certified financial planning methodologies
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button variant="outline" size="sm" onClick={handleRefresh} className="min-h-[44px] px-3">
               <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh Analysis
+              <span className="hidden sm:inline">Refresh Analysis</span>
+              <span className="sm:hidden">Refresh</span>
             </Button>
           </div>
         </div>
@@ -355,19 +597,21 @@ const Insights = () => {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-            <div className="text-primary">
-              <Brain className="h-8 w-8" />
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="text-primary">
+                <Brain className="h-6 w-6 sm:h-8 sm:w-8" />
+              </div>
+              <span>{fallbackMode ? 'AI Insights (Fallback Mode)' : 'AI Insights'}</span>
             </div>
-            {fallbackMode ? 'AI Insights (Fallback Mode)' : 'AI Insights'}
             {fallbackMode && (
-              <Badge variant="outline" className="ml-2 text-orange-700 border-orange-300 bg-orange-50">
+              <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50 text-xs sm:text-sm w-fit">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Limited Service
               </Badge>
             )}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 leading-relaxed">
             {fallbackMode
               ? 'Showing basic recommendations while professional AI consultation is unavailable'
               : 'Personalized recommendations to optimize your debt repayment'
@@ -386,39 +630,39 @@ const Insights = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* Debt Avalanche */}
-              <div className="p-4 border border-primary/20 bg-primary/5 rounded-lg">
-                <h3 className="font-semibold text-foreground mb-2">Debt Avalanche</h3>
-                <p className="text-sm text-muted-foreground mb-3">
+              <div className="p-4 sm:p-5 border border-primary/20 bg-primary/5 rounded-lg">
+                <h3 className="font-semibold text-foreground mb-2 text-base sm:text-lg">Debt Avalanche</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
                   Pay minimums on all debts, then put extra money toward the debt with the highest interest rate.
                 </p>
-                <div className="text-xs text-success">✓ Mathematically optimal - saves most money</div>
+                <div className="text-xs sm:text-sm text-success">✓ Mathematically optimal - saves most money</div>
               </div>
 
               {/* Debt Snowball */}
-              <div className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors">
-                <h3 className="font-semibold text-foreground mb-2">Debt Snowball</h3>
-                <p className="text-sm text-muted-foreground mb-3">
+              <div className="p-4 sm:p-5 border border-border rounded-lg hover:border-primary/50 transition-colors">
+                <h3 className="font-semibold text-foreground mb-2 text-base sm:text-lg">Debt Snowball</h3>
+                <p className="text-sm sm:text-base text-muted-foreground mb-3 leading-relaxed">
                   Pay minimums on all debts, then put extra money toward the debt with the smallest balance.
                 </p>
-                <div className="text-xs text-warning">✓ Psychologically motivating - quick wins</div>
+                <div className="text-xs sm:text-sm text-warning">✓ Psychologically motivating - quick wins</div>
               </div>
             </div>
 
             {/* General Tips */}
-            <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-              <h4 className="font-medium text-foreground mb-3">💡 General Debt Tips</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-muted-foreground">
+            <div className="mt-6 p-4 sm:p-5 bg-muted/50 rounded-lg">
+              <h4 className="font-medium text-foreground mb-3 text-base sm:text-lg">💡 General Debt Tips</h4>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm sm:text-base text-muted-foreground">
                 <div>
-                  <ul className="space-y-1">
+                  <ul className="space-y-2">
                     <li>• Pay more than the minimum when possible</li>
                     <li>• Consider debt consolidation for high-interest debt</li>
                     <li>• Automate payments to avoid late fees</li>
                   </ul>
                 </div>
                 <div>
-                  <ul className="space-y-1">
+                  <ul className="space-y-2">
                     <li>• Review your strategy monthly</li>
                     <li>• Create an emergency fund to avoid new debt</li>
                     <li>• Track your progress regularly</li>
@@ -454,20 +698,22 @@ const Insights = () => {
   return (
     <div className="space-y-8">
       {/* Header Section */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
-            <div className="text-primary">
-              <Brain className="h-8 w-8" />
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="text-primary">
+                <Brain className="h-6 w-6 sm:h-8 sm:w-8" />
+              </div>
+              <span>AI Insights</span>
             </div>
-            AI Insights
             {insightsData.metadata.professionalQualityScore && (
-              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-sm">
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-xs sm:text-sm w-fit">
                 Professional Quality: {insightsData.metadata.professionalQualityScore}%
               </Badge>
             )}
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
             {professionalRecommendations && professionalRecommendations.length > 0
               ? 'Professional debt consultation powered by certified financial planning methodologies'
               : 'Personalized recommendations to optimize your debt repayment strategy'
@@ -475,29 +721,30 @@ const Insights = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleRefresh}>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <Button variant="outline" size="sm" onClick={handleRefresh} className="min-h-[44px] px-3">
             <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">Refresh</span>
           </Button>
         </div>
       </div>
 
       {/* Overview Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <Card className="bg-card border-0 shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="text-primary">
                 <DollarSign className="h-5 w-5" />
               </div>
-              <CardTitle className="text-base font-medium text-foreground">Current Debt Analysis</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-medium text-foreground">Current Debt Analysis</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-semibold text-foreground">{formatCurrency(debtSummary.totalDebt)}</div>
-            <p className="text-sm text-muted-foreground mt-1">Total Outstanding Debt</p>
-            <div className="mt-4 text-xs text-muted-foreground">
+            <div className="text-xl sm:text-2xl lg:text-3xl font-semibold text-foreground">{formatCurrency(debtSummary.totalDebt)}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Total Outstanding Debt</p>
+            <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-muted-foreground">
               {debtSummary.debtCount} active debts • {debtSummary.averageInterestRate.toFixed(1)}% avg rate
             </div>
           </CardContent>
@@ -509,13 +756,13 @@ const Insights = () => {
               <div className="text-success">
                 <PiggyBank className="h-5 w-5" />
               </div>
-              <CardTitle className="text-base font-medium text-foreground">Optimization Potential</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-medium text-foreground">Optimization Potential</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-semibold text-foreground">{formatCurrency(currentStrategy.totalInterestSaved)}</div>
-            <p className="text-sm text-muted-foreground mt-1">Potential Interest Savings</p>
-            <div className="mt-4 text-xs text-muted-foreground">
+            <div className="text-xl sm:text-2xl lg:text-3xl font-semibold text-foreground">{formatCurrency(currentStrategy.totalInterestSaved)}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Potential Interest Savings</p>
+            <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-muted-foreground">
               vs. minimum payments
             </div>
           </CardContent>
@@ -527,15 +774,15 @@ const Insights = () => {
               <div className="text-primary">
                 <TrendingUp className="h-5 w-5" />
               </div>
-              <CardTitle className="text-base font-medium text-foreground">Debt Freedom Timeline</CardTitle>
+              <CardTitle className="text-sm sm:text-base font-medium text-foreground">Debt Freedom Timeline</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-semibold text-foreground">
+            <div className="text-xl sm:text-2xl lg:text-3xl font-semibold text-foreground">
               {Math.floor(currentStrategy.timeToDebtFree / 12)}y {currentStrategy.timeToDebtFree % 12}m
             </div>
-            <p className="text-sm text-muted-foreground mt-1">With AI-optimized strategy</p>
-            <div className="mt-4 text-xs text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">With AI-optimized strategy</p>
+            <div className="mt-3 sm:mt-4 text-xs sm:text-sm text-muted-foreground">
               {new Date(currentStrategy.debtFreeDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
             </div>
           </CardContent>
@@ -602,24 +849,24 @@ const Insights = () => {
                   }
                 </p>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-semibold text-foreground">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                  <div className="text-center p-3 sm:p-0">
+                    <div className="text-xl sm:text-2xl font-semibold text-foreground">
                       {Math.floor(currentStrategy.timeToDebtFree / 12)}y {currentStrategy.timeToDebtFree % 12}m
                     </div>
-                    <div className="text-xs text-muted-foreground">Time to debt-free</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Time to debt-free</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-semibold text-foreground">
+                  <div className="text-center p-3 sm:p-0">
+                    <div className="text-xl sm:text-2xl font-semibold text-foreground">
                       {formatCurrency(currentStrategy.totalInterestSaved)}
                     </div>
-                    <div className="text-xs text-muted-foreground">Interest savings</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Interest savings</div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-semibold text-foreground">
+                  <div className="text-center p-3 sm:p-0">
+                    <div className="text-xl sm:text-2xl font-semibold text-foreground">
                       {formatCurrency(currentStrategy.monthlyPayment)}
                     </div>
-                    <div className="text-xs text-muted-foreground">Monthly payment</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Monthly payment</div>
                   </div>
                 </div>
               </div>
@@ -627,38 +874,38 @@ const Insights = () => {
               {/* Strategy Comparison */}
               <div className="space-y-3">
                 <h4 className="font-medium text-foreground">Strategy Comparison</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                    className={`p-4 sm:p-5 rounded-lg border cursor-pointer transition-all min-h-[80px] flex flex-col justify-center ${
                       selectedStrategy === 'avalanche'
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'
                     }`}
                     onClick={() => handleStrategySelection('avalanche')}
                   >
-                    <div className="font-medium text-foreground">Debt Avalanche</div>
-                    <div className="text-sm text-muted-foreground">Minimize total interest paid</div>
-                    <div className="text-xs text-success mt-1">Mathematically optimal</div>
+                    <div className="font-medium text-foreground text-base sm:text-lg">Debt Avalanche</div>
+                    <div className="text-sm sm:text-base text-muted-foreground">Minimize total interest paid</div>
+                    <div className="text-xs sm:text-sm text-success mt-1">Mathematically optimal</div>
                   </div>
                   <div
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                    className={`p-4 sm:p-5 rounded-lg border cursor-pointer transition-all min-h-[80px] flex flex-col justify-center ${
                       selectedStrategy === 'snowball'
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'
                     }`}
                     onClick={() => handleStrategySelection('snowball')}
                   >
-                    <div className="font-medium text-foreground">Debt Snowball</div>
-                    <div className="text-sm text-muted-foreground">Build momentum with quick wins</div>
-                    <div className="text-xs text-warning mt-1">Psychologically motivating</div>
+                    <div className="font-medium text-foreground text-base sm:text-lg">Debt Snowball</div>
+                    <div className="text-sm sm:text-base text-muted-foreground">Build momentum with quick wins</div>
+                    <div className="text-xs sm:text-sm text-warning mt-1">Psychologically motivating</div>
                   </div>
                 </div>
               </div>
 
               {/* Quick Tips */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-medium text-foreground mb-2">Quick Tips</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
+              <div className="p-4 sm:p-5 bg-muted/50 rounded-lg">
+                <h4 className="font-medium text-foreground mb-2 text-base sm:text-lg">Quick Tips</h4>
+                <ul className="text-sm sm:text-base text-muted-foreground space-y-2">
                   <li>• Make extra payments whenever possible to reduce interest</li>
                   <li>• Consider consolidating high-interest debt</li>
                   <li>• Automate your payments to avoid late fees</li>

@@ -210,23 +210,19 @@ const DebtDetailView: React.FC = () => {
       {/* Header */}
       <div className="border-b bg-background sticky top-0 z-40">
         <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" onClick={handleBack}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              <div>
-                <h1 className="text-2xl font-semibold text-foreground">
-                  {selectedDebt ? selectedDebt.name : 'Debt Management'}
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {formatCurrency(totalDebt)} across {debts.length} debts • {progressPercentage.toFixed(1)}% paid off
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">
+                {selectedDebt ? selectedDebt.name : 'Debt Management'}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatCurrency(totalDebt)} across {debts.length} debts • {progressPercentage.toFixed(1)}% paid off
+              </p>
             </div>
-
-            <AddDebtDialog onAddDebt={handleAddDebt} />
           </div>
         </div>
       </div>

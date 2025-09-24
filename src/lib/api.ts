@@ -425,20 +425,36 @@ export class ApiService {
     });
   }
 
-  // Enhanced AI Insights method with comprehensive error handling
+  // Enhanced AI Insights method with cache-first approach
   async getAIInsights(): Promise<AIConsultationResponse> {
     try {
-      // Use the correct backend endpoint
-      const endpoint = '/api/ai/insights';
+      // First check if we have cached insights
+      const cacheStatus = await this.getAIInsightsStatus();
 
-      const response = await this.request<AIConsultationResponse>(endpoint, {
-        // Extended timeout for AI processing (120 seconds)
-        ...(typeof AbortController !== 'undefined' && {
-          signal: AbortSignal.timeout(120000)
-        })
-      });
+      if (cacheStatus.has_valid_cache && cacheStatus.cache_data) {
+        // Return cached data immediately
+        return {
+          debt_analysis: cacheStatus.cache_data.debt_analysis,
+          recommendations: cacheStatus.cache_data.recommendations,
+          metadata: {
+            is_cached: true,
+            cache_age_seconds: cacheStatus.cache_age_seconds || 0,
+            generated_at: cacheStatus.cache_data.generated_at || new Date().toISOString(),
+            processing_time: cacheStatus.cache_data.processing_time || 0,
+            ai_model_used: cacheStatus.cache_data.ai_model_used || 'cached'
+          }
+        };
+      }
 
-      return response;
+      // If no valid cache, check if processing is in progress
+      if (cacheStatus.is_processing) {
+        // If already processing, wait for completion or return partial result
+        return this.waitForProcessing();
+      }
+
+      // No cache and not processing, start fresh generation
+      return this.generateFreshAIInsights();
+
     } catch (error) {
       // Enhanced error handling for rate limiting and timeouts
       if (error instanceof Error) {
@@ -454,6 +470,94 @@ export class ApiService {
       }
       throw error;
     }
+  }
+
+  // Get AI insights cache status
+  async getAIInsightsStatus(): Promise<{
+    has_valid_cache: boolean;
+    is_processing: boolean;
+    cache_age_seconds?: number;
+    queue_position?: number;
+    estimated_completion_time?: string;
+    cache_data?: {
+      debt_analysis: any;
+      recommendations: any[];
+      generated_at: string;
+      processing_time: number;
+      ai_model_used: string;
+    };
+  }> {
+    return this.request('/api/ai/insights/status');
+  }
+
+  // Force refresh AI insights (bypass cache)
+  async refreshAIInsights(): Promise<AIConsultationResponse> {
+    return this.request<AIConsultationResponse>('/api/ai/insights/refresh', {
+      method: 'POST',
+      // Extended timeout for AI processing
+      ...(typeof AbortController !== 'undefined' && {
+        signal: AbortSignal.timeout(120000)
+      })
+    });
+  }
+
+  // Invalidate AI insights cache
+  async invalidateAIInsightsCache(): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/ai/insights/cache', {
+      method: 'DELETE'
+    });
+  }
+
+  // Wait for processing completion
+  private async waitForProcessing(): Promise<AIConsultationResponse> {
+    let attempts = 0;
+    const maxAttempts = 60; // Wait up to 2 minutes
+    const pollInterval = 2000; // 2 seconds
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      const status = await this.getAIInsightsStatus();
+
+      if (status.has_valid_cache && status.cache_data) {
+        // Processing completed, return cached result
+        return {
+          debt_analysis: status.cache_data.debt_analysis,
+          recommendations: status.cache_data.recommendations,
+          metadata: {
+            is_cached: true,
+            cache_age_seconds: status.cache_age_seconds || 0,
+            generated_at: status.cache_data.generated_at,
+            processing_time: status.cache_data.processing_time,
+            ai_model_used: status.cache_data.ai_model_used
+          }
+        };
+      }
+
+      if (!status.is_processing) {
+        // Processing failed or stopped, fall back to fresh generation
+        break;
+      }
+
+      attempts++;
+    }
+
+    // Timeout waiting for processing, fall back to fresh generation
+    return this.generateFreshAIInsights();
+  }
+
+  // Generate fresh AI insights
+  private async generateFreshAIInsights(): Promise<AIConsultationResponse> {
+    const endpoint = '/api/ai/insights';
+
+    const response = await this.request<AIConsultationResponse>(endpoint, {
+      // Extended timeout for AI processing (120 seconds)
+      ...(typeof AbortController !== 'undefined' && {
+        signal: AbortSignal.timeout(120000)
+      })
+    });
+
+    return response;
   }
 
   async getAIRecommendations(): Promise<AIRecommendation[]> {

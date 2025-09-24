@@ -328,10 +328,35 @@ export interface AIConsultationResponse {
     processing_time?: number;
     quality_score?: number;
     generated_at: string;
+    is_cached?: boolean;
+    cache_age_seconds?: number;
+    ai_model_used?: string;
   };
 }
 
 export interface ProfessionalAIInsightsResponse extends AIConsultationResponse {}
+
+// Cache status types
+export interface AIInsightsCacheStatus {
+  has_valid_cache: boolean;
+  is_processing: boolean;
+  cache_age_seconds?: number;
+  queue_position?: number;
+  estimated_completion_time?: string;
+  cache_data?: {
+    debt_analysis: any;
+    recommendations: any[];
+    generated_at: string;
+    processing_time: number;
+    ai_model_used: string;
+  };
+}
+
+// Cache management response
+export interface CacheManagementResponse {
+  success: boolean;
+  message: string;
+}
 
 // API Request/Response types for enhanced endpoints
 
