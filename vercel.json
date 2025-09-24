@@ -8,5 +8,9 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "env": {
+    "VITE_API_BASE_URL": "https://debtease-server.onrender.com",
+    "VITE_API_URL": "https://debtease-server.onrender.com/api"
+  }
 }
