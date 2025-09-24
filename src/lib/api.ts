@@ -25,8 +25,14 @@ interface ApiResponse<T> {
 }
 
 interface AuthResponse {
-  access_token: string;
-  token_type: string;
+  user: {
+    id: string;
+    email: string;
+    full_name?: string;
+    monthly_income?: number;
+  };
+  session_expires_at: string;
+  message: string;
 }
 
 interface UserResponse {
@@ -193,90 +199,290 @@ interface AIConsultationResponse {
   };
 }
 
-// API Service Class
+// Enhanced API Service Class with robust error handling and retry logic
 export class ApiService {
   private baseUrl: string;
   private token: string | null = null;
+  private tokenExpiresAt: Date | null = null;
+  private debugMode: boolean = true;
+  private requestId: number = 0;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
     this.token = localStorage.getItem('access_token');
+    const expiresAt = localStorage.getItem('token_expires_at');
+    if (expiresAt) {
+      this.tokenExpiresAt = new Date(expiresAt);
+    }
+    this.log('ApiService initialized', { hasToken: !!this.token, baseUrl: this.baseUrl });
   }
 
-  // Authentication methods
-  setToken(token: string) {
+  private log(message: string, data?: any) {
+    if (this.debugMode) {
+      console.log(`[API] ${message}`, data || '');
+    }
+  }
+
+  private error(message: string, data?: any) {
+    console.error(`[API ERROR] ${message}`, data || '');
+  }
+
+  // Enhanced authentication methods with lifecycle management
+  setToken(token: string, expiresAt?: string) {
     this.token = token;
     localStorage.setItem('access_token', token);
+
+    if (expiresAt) {
+      this.tokenExpiresAt = new Date(expiresAt);
+      localStorage.setItem('token_expires_at', expiresAt);
+    }
+
+    this.log('Token set successfully', {
+      tokenPreview: token.substring(0, 20) + '...',
+      expiresAt: expiresAt
+    });
   }
 
   clearToken() {
+    this.log('Clearing token and session data');
     this.token = null;
+    this.tokenExpiresAt = null;
     localStorage.removeItem('access_token');
+    localStorage.removeItem('token_expires_at');
   }
 
-  private getHeaders(): HeadersInit {
+  isTokenExpired(): boolean {
+    if (!this.token || !this.tokenExpiresAt) {
+      return true;
+    }
+    const now = new Date();
+    const isExpired = now >= this.tokenExpiresAt;
+    if (isExpired) {
+      this.log('Token is expired', { now, expiresAt: this.tokenExpiresAt });
+    }
+    return isExpired;
+  }
+
+  hasValidToken(): boolean {
+    const hasToken = !!this.token && !this.isTokenExpired();
+    this.log('Token validation check', { hasToken, token: !!this.token, expired: this.isTokenExpired() });
+    return hasToken;
+  }
+
+  private getHeaders(skipAuth: boolean = false): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
+      'X-Request-ID': (++this.requestId).toString(),
     };
 
-    if (this.token) {
+    // Server expects session token in Authorization header (OAuth2-style)
+    if (!skipAuth && this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
+      this.log('Added Authorization header', { tokenPreview: this.token.substring(0, 20) + '...' });
+    } else if (!skipAuth) {
+      this.log('No token available for Authorization header');
     }
 
     return headers;
+  }
+
+  private async requestWithRetry<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    retryCount: number = 0,
+    maxRetries: number = 3
+  ): Promise<T> {
+    const requestId = this.requestId;
+    const url = `${this.baseUrl}${endpoint}`;
+    const skipAuth = options.headers && 'skip-auth' in options.headers;
+
+    this.log(`Request ${requestId}: ${options.method || 'GET'} ${endpoint}`, {
+      retryCount,
+      hasToken: !!this.token,
+      skipAuth
+    });
+
+    try {
+      const headers = skipAuth ?
+        { ...options.headers } :
+        { ...this.getHeaders(), ...options.headers };
+
+      // Remove skip-auth flag from headers
+      if ('skip-auth' in headers) {
+        delete headers['skip-auth'];
+      }
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
+
+      this.log(`Response ${requestId}: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        return this.handleErrorResponse(response, endpoint, options, retryCount, maxRetries, requestId);
+      }
+
+      const data = await response.json();
+      this.log(`Success ${requestId}:`, { dataType: typeof data, hasData: !!data });
+      return data;
+    } catch (error) {
+      return this.handleRequestError(error, endpoint, options, retryCount, maxRetries, requestId);
+    }
+  }
+
+  private async handleErrorResponse<T>(
+    response: Response,
+    endpoint: string,
+    options: RequestInit,
+    retryCount: number,
+    maxRetries: number,
+    requestId: number
+  ): Promise<T> {
+    const errorData = await response.json().catch(() => ({}));
+    this.error(`Request ${requestId} failed:`, {
+      status: response.status,
+      statusText: response.statusText,
+      errorData,
+      endpoint,
+      retryCount
+    });
+
+    // Handle authentication errors with smart retry logic
+    if (response.status === 401) {
+      return this.handle401Error(endpoint, options, retryCount, maxRetries, errorData, requestId);
+    }
+
+    // Handle rate limiting with exponential backoff
+    if (response.status === 429) {
+      if (retryCount < maxRetries) {
+        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+        this.log(`Rate limited, retrying in ${backoffDelay}ms`, { requestId, retryCount });
+        await this.delay(backoffDelay);
+        return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
+      }
+      throw new Error('Rate limited. Please try again later.');
+    }
+
+    // Handle server errors with retry
+    if (response.status >= 500 && retryCount < maxRetries) {
+      const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+      this.log(`Server error, retrying in ${backoffDelay}ms`, { requestId, retryCount });
+      await this.delay(backoffDelay);
+      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
+    }
+
+    // Handle specific error cases
+    if (response.status === 404 && endpoint.includes('/onboarding/status')) {
+      throw new Error('Onboarding not found (404)');
+    }
+
+    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  private async handle401Error<T>(
+    endpoint: string,
+    options: RequestInit,
+    retryCount: number,
+    maxRetries: number,
+    errorData: any,
+    requestId: number
+  ): Promise<T> {
+    this.error(`401 Unauthorized for request ${requestId}`, {
+      endpoint,
+      hasToken: !!this.token,
+      tokenExpired: this.isTokenExpired(),
+      errorData
+    });
+
+    // Check if this is a session corruption issue vs expired token
+    const isSessionCorruption = errorData.detail?.includes('Expected unicode, got Delete') ||
+                                errorData.detail?.includes('cache') ||
+                                errorData.detail?.includes('session');
+
+    if (isSessionCorruption && retryCount < 2) {
+      // For session corruption, try once more with the same token
+      this.log(`Suspected session corruption, retrying request ${requestId}`, { retryCount });
+      await this.delay(1000); // Brief delay for server recovery
+      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
+    }
+
+    // For critical operations, don't immediately clear the token
+    const isCriticalOperation = endpoint.includes('/debts/') ||
+                               endpoint.includes('/auth/me') ||
+                               endpoint.includes('/onboarding/');
+
+    if (isCriticalOperation && retryCount === 0) {
+      this.log(`Critical operation failed, attempting one retry with fresh validation`, { requestId });
+      // Brief delay then retry once more
+      await this.delay(500);
+      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
+    }
+
+    // After retries failed, clear token and throw appropriate error
+    this.clearToken();
+    const errorMessage = isSessionCorruption ?
+      'Session was corrupted on server. Please log in again.' :
+      'Your session has expired. Please log in again.';
+
+    throw new Error(errorMessage);
+  }
+
+  private async handleRequestError<T>(
+    error: any,
+    endpoint: string,
+    options: RequestInit,
+    retryCount: number,
+    maxRetries: number,
+    requestId: number
+  ): Promise<T> {
+    this.error(`Network error for request ${requestId}:`, {
+      error: error.message,
+      endpoint,
+      retryCount
+    });
+
+    // Handle network errors and other fetch failures
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      if (retryCount < maxRetries) {
+        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        this.log(`Network error, retrying in ${backoffDelay}ms`, { requestId, retryCount });
+        await this.delay(backoffDelay);
+        return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
+      }
+      throw new Error('Network error. Please check your connection and try again.');
+    }
+
+    // Re-throw custom errors and other errors
+    throw error;
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    return this.requestWithRetry<T>(endpoint, options);
+  }
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          ...this.getHeaders(),
-          ...options.headers,
-        },
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Token validation before critical operations
+  private async ensureValidToken(operation: string): Promise<void> {
+    if (!this.hasValidToken()) {
+      this.error(`Invalid token for operation: ${operation}`, {
+        hasToken: !!this.token,
+        isExpired: this.isTokenExpired()
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-
-        // Handle authentication errors specifically
-        if (response.status === 401) {
-          // Clear the invalid token
-          this.clearToken();
-          console.log('API: 401 error encountered, token cleared');
-          // Provide more specific error messages based on the endpoint
-          if (endpoint.includes('/onboarding/')) {
-            throw new Error('Your session has expired. Please log in again.');
-          }
-          throw new Error('Your session has expired. Please log in again.');
-        }
-
-        // Handle specific error cases
-        if (response.status === 404 && endpoint.includes('/onboarding/status')) {
-          throw new Error('Onboarding not found (404)');
-        }
-
-        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return response.json();
-    } catch (error) {
-      // Handle network errors and other fetch failures
-      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your connection and try again.');
-      }
-      // Re-throw our custom errors and other errors
-      throw error;
+      throw new Error('Authentication required. Please log in again.');
     }
   }
 
   // Authentication API
   async login(email: string, password: string): Promise<AuthResponse> {
+    this.log('Attempting login', { email });
+
     const formData = new URLSearchParams();
     formData.append('username', email);
     formData.append('password', password);
@@ -285,16 +491,24 @@ export class ApiService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-      },
+        'skip-auth': 'true' // Skip auth header for login
+      } as any,
       body: formData,
     });
 
     if (!response.ok) {
+      this.error('Login failed', { status: response.status, statusText: response.statusText });
       throw new Error('Invalid email or password');
     }
 
     const data = await response.json();
-    this.setToken(data.access_token);
+    this.log('Login successful', {
+      hasToken: !!data.access_token,
+      expiresAt: data.expires_at
+    });
+
+    // Server returns session token as 'access_token'
+    this.setToken(data.access_token, data.expires_at);
     return data;
   }
 
@@ -310,7 +524,12 @@ export class ApiService {
   }
 
   async getCurrentUser(): Promise<UserProfile> {
+    await this.ensureValidToken('getCurrentUser');
+
+    this.log('Fetching current user');
     const data = await this.request<UserResponse>('/api/auth/me');
+
+    this.log('User data retrieved successfully', { id: data.id, email: data.email });
     return {
       id: data.id,
       email: data.email,
@@ -321,35 +540,53 @@ export class ApiService {
     };
   }
 
-  // Debt API
+  // Enhanced Debt API with validation and comprehensive error handling
   async getDebts(activeOnly: boolean = true): Promise<Debt[]> {
+    await this.ensureValidToken('getDebts');
     return this.request<Debt[]>(`/api/debts/?active_only=${activeOnly}`);
   }
 
   async getDebt(debtId: string): Promise<Debt> {
+    await this.ensureValidToken('getDebt');
     return this.request<Debt>(`/api/debts/${debtId}`);
   }
 
   async createDebt(debt: Omit<Debt, 'id' | 'created_at' | 'updated_at' | 'days_past_due'>): Promise<Debt> {
-    return this.request<Debt>('/api/debts/', {
-      method: 'POST',
-      body: JSON.stringify({
-        name: debt.name,
-        debt_type: debt.debt_type,
-        principal_amount: debt.principal_amount,
-        current_balance: debt.current_balance,
-        interest_rate: debt.interest_rate,
-        is_variable_rate: debt.is_variable_rate,
-        minimum_payment: debt.minimum_payment,
-        due_date: debt.due_date,
-        lender: debt.lender,
-        remaining_term_months: debt.remaining_term_months,
-        is_tax_deductible: debt.is_tax_deductible,
-        payment_frequency: debt.payment_frequency,
-        is_high_priority: debt.is_high_priority,
-        notes: debt.notes,
-      }),
+    await this.ensureValidToken('createDebt');
+
+    this.log('Creating debt', {
+      name: debt.name,
+      debt_type: debt.debt_type,
+      current_balance: debt.current_balance
     });
+
+    try {
+      const result = await this.request<Debt>('/api/debts/', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: debt.name,
+          debt_type: debt.debt_type,
+          principal_amount: debt.principal_amount,
+          current_balance: debt.current_balance,
+          interest_rate: debt.interest_rate,
+          is_variable_rate: debt.is_variable_rate,
+          minimum_payment: debt.minimum_payment,
+          due_date: debt.due_date,
+          lender: debt.lender,
+          remaining_term_months: debt.remaining_term_months,
+          is_tax_deductible: debt.is_tax_deductible,
+          payment_frequency: debt.payment_frequency,
+          is_high_priority: debt.is_high_priority,
+          notes: debt.notes,
+        }),
+      });
+
+      this.log('Debt created successfully', { id: result.id, name: result.name });
+      return result;
+    } catch (error) {
+      this.error('Failed to create debt', { error: error instanceof Error ? error.message : error });
+      throw error;
+    }
   }
 
   async updateDebt(debtId: string, debt: Partial<Debt>): Promise<Debt> {
