@@ -10,8 +10,7 @@ import {
   BarChart3,
   ArrowRight,
   CheckCircle,
-  Smartphone,
-  Bug
+  Smartphone
 } from 'lucide-react';
 
 const Index = () => {
@@ -49,40 +48,16 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="text-2xl font-bold text-primary">DebtEase</div>
           </div>
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const debug = debugAuth();
-                alert(`Auth Status:\nUser: ${debug.user ? 'Logged in' : 'Not logged in'}\nToken: ${debug.hasToken ? 'Present' : 'Missing'}\nLoading: ${debug.isLoading}`);
-              }}
-              className="gap-2"
-            >
-              <Bug className="h-4 w-4" />
-              Debug Auth
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                localStorage.removeItem('access_token');
-                alert('Authentication cleared! Refresh the page.');
-                window.location.reload();
-              }}
-              className="gap-2"
-            >
-              Clear Auth
-            </Button>
+          <div className="flex items-center space-x-2 sm:space-x-4">
             <Link to="/auth">
-              <Button variant="outline">Login</Button>
+              <Button variant="outline" size="sm" className="hidden sm:inline-flex">Login</Button>
             </Link>
             <Link to="/auth">
-              <Button>Get Started</Button>
+              <Button size="sm">Get Started</Button>
             </Link>
           </div>
         </div>
@@ -91,11 +66,11 @@ const Index = () => {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-16 lg:py-24">
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl lg:text-6xl font-bold text-foreground mb-6">
+          <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold text-foreground mb-6">
             Take Control of Your
             <span className="text-primary block">Debt Journey</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto px-4">
             The smart way to manage all your Indian debts, track payments, and become debt-free faster with AI-powered insights.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -124,11 +99,11 @@ const Index = () => {
               Whether it's credit cards, EMIs, loans, or overdrafts - DebtEase handles all your debts in one place.
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 justify-center max-w-4xl mx-auto">
+          <div className="flex flex-wrap gap-2 sm:gap-3 justify-center max-w-4xl mx-auto px-4">
             {debtTypes.map((type, index) => (
               <div 
                 key={index}
-                className="bg-background border border-border rounded-full px-4 py-2 text-sm font-medium"
+                className="bg-background border border-border rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium"
               >
                 {type}
               </div>
@@ -148,7 +123,7 @@ const Index = () => {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           {features.map((feature, index) => (
             <Card key={index} className="text-center hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -177,7 +152,7 @@ const Index = () => {
               </h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8">
               {[
                 "Track multiple debt types in one dashboard",
                 "Get personalized payment strategies",
