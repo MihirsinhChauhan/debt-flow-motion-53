@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { apiService } from '../lib/api';
 import { OnboardingStep, OnboardingProgress, OnboardingData, OnboardingProfileData, OnboardingGoalData } from '../types/debt';
+import { useAuth } from './AuthContext';
 
 interface OnboardingContextType {
   // State
@@ -21,6 +22,7 @@ interface OnboardingContextType {
   goToStep: (step: OnboardingStep) => void;
   navigateToStep: (step: OnboardingStep) => Promise<void>;
   refreshStatus: () => Promise<void>;
+  resetOnboardingState: () => void;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -38,6 +40,7 @@ interface OnboardingProviderProps {
 }
 
 export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children }) => {
+  const { user, isLoading: authLoading } = useAuth();
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
@@ -53,6 +56,12 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
   const currentRequestRef = useRef<Promise<void> | null>(null);
 
   const refreshStatus = useCallback(async () => {
+    // Critical: Don't attempt to fetch onboarding status if user is not authenticated
+    if (authLoading || !user) {
+      console.log('OnboardingContext: Skipping status fetch - authentication not ready', { authLoading, hasUser: !!user });
+      return;
+    }
+
     // Don't poll if we've already checked and onboarding is completed
     if (hasCheckedStatusRef.current && isCompletedRef.current) {
       console.log('Onboarding polling stopped - already completed');
@@ -83,10 +92,32 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
           console.log('Onboarding completed - polling will stop');
         }
       } catch (err) {
-        // If no onboarding exists yet, that's fine - user hasn't started
-        if (err instanceof Error && !err.message.includes('404') && !err.message.includes('401') && !err.message.includes('Invalid or expired')) {
-          setError(err.message);
-          console.error('Onboarding status error:', err.message);
+        console.error('Onboarding status fetch error:', err);
+
+        // Handle different types of errors appropriately
+        if (err instanceof Error) {
+          if (err.message.includes('session has expired') || err.message.includes('log in again')) {
+            // Session expired - this is a real authentication issue
+            setError('Your session has expired. Please log in again.');
+            console.log('OnboardingContext: Session expired, user needs to re-login');
+          } else if (err.message.includes('404')) {
+            // 404 means user hasn't started onboarding yet - this is normal
+            console.log('OnboardingContext: No onboarding found (404) - user can start fresh');
+            // Reset to initial state for fresh start
+            setCurrentStep('welcome');
+            setCompletedSteps([]);
+            setOnboardingData({});
+            setProgressPercentage(0);
+            setIsCompleted(false);
+          } else if (err.message.includes('401')) {
+            // 401 during onboarding status fetch - could be auth issue or no session
+            console.log('OnboardingContext: 401 error - authentication might be invalid');
+            setError('Authentication issue. Please try logging in again.');
+          } else {
+            // Other errors
+            setError(`Failed to load onboarding status: ${err.message}`);
+            console.error('OnboardingContext: Unexpected error:', err.message);
+          }
         }
         hasCheckedStatusRef.current = true;
       } finally {
@@ -97,15 +128,16 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
 
     currentRequestRef.current = requestPromise;
     return requestPromise;
-  }, []); // Empty dependency array to prevent infinite loop
+  }, [authLoading, user]); // Depend on auth state to prevent calling API before authentication
 
-  // Load onboarding status on mount - only once
+  // Load onboarding status when authentication is ready
   useEffect(() => {
-    if (!isInitialLoadRef.current) {
+    if (!isInitialLoadRef.current && !authLoading && user) {
       isInitialLoadRef.current = true;
+      console.log('OnboardingContext: Authentication ready, fetching onboarding status');
       refreshStatus();
     }
-  }, []); // Empty dependency array ensures this only runs once
+  }, [authLoading, user, refreshStatus]);
 
   const updateStateFromProgress = useCallback((progress: OnboardingProgress) => {
     setCurrentStep(progress.current_step);
@@ -125,9 +157,16 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
   }, []);
 
   const startOnboarding = async () => {
+    // Check authentication before attempting onboarding operations
+    if (authLoading || !user) {
+      setError('Please wait for authentication to complete or log in again');
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
+      console.log('OnboardingContext: Starting onboarding for user:', user.id);
       const progress = await apiService.startOnboarding();
       updateStateFromProgress(progress);
       hasCheckedStatusRef.current = true;
@@ -135,11 +174,14 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
       const errorMessage = err instanceof Error ? err.message : 'Failed to start onboarding';
 
       // Handle authentication errors specifically
-      if (errorMessage.includes('401') || errorMessage.includes('Invalid or expired') || errorMessage.includes('Bad Request')) {
-        setError('Please log in again to continue with onboarding');
+      if (errorMessage.includes('session has expired') || errorMessage.includes('log in again')) {
+        setError('Your session has expired. Please log in again.');
+      } else if (errorMessage.includes('401') || errorMessage.includes('Invalid or expired')) {
+        setError('Authentication issue. Please try logging in again.');
       } else {
         setError(errorMessage);
       }
+      console.error('OnboardingContext: Start onboarding error:', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -215,6 +257,31 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
     }
   };
 
+  const resetOnboardingState = useCallback(() => {
+    console.log('OnboardingContext: Resetting onboarding state');
+    setCurrentStep('welcome');
+    setCompletedSteps([]);
+    setOnboardingData({});
+    setProgressPercentage(0);
+    setIsCompleted(false);
+    setIsLoading(false);
+    setError(null);
+
+    // Reset refs
+    hasCheckedStatusRef.current = false;
+    isCompletedRef.current = false;
+    isInitialLoadRef.current = false;
+    currentRequestRef.current = null;
+  }, []);
+
+  // Reset onboarding state when user logs out
+  useEffect(() => {
+    if (!user && !authLoading) {
+      console.log('OnboardingContext: User logged out, resetting state');
+      resetOnboardingState();
+    }
+  }, [user, authLoading, resetOnboardingState]);
+
   const contextValue: OnboardingContextType = {
     currentStep,
     completedSteps,
@@ -231,6 +298,7 @@ export const OnboardingProvider: React.FC<OnboardingProviderProps> = ({ children
     goToStep,
     navigateToStep,
     refreshStatus,
+    resetOnboardingState,
   };
 
   return (

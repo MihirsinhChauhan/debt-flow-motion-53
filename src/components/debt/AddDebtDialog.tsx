@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { Debt, DebtType, PaymentFrequency } from '@/types/debt';
+import { apiService } from '@/lib/api';
 
 
 const debtTypes: { value: DebtType; label: string; description: string }[] = [
@@ -38,6 +39,7 @@ interface AddDebtDialogProps {
 
 const AddDebtDialog: React.FC<AddDebtDialogProps> = ({ onAddDebt, trigger }) => {
   const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     debt_type: 'credit_card' as DebtType,
@@ -55,58 +57,63 @@ const AddDebtDialog: React.FC<AddDebtDialogProps> = ({ onAddDebt, trigger }) => 
     notes: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.current_balance || !formData.minimum_payment || !formData.due_date || !formData.lender) {
       toast.error('Please fill in all required fields');
       return;
     }
 
-    const newDebt: Debt = {
-      id: Date.now().toString(),
-      name: formData.name,
-      debt_type: formData.debt_type,
-      principal_amount: parseFloat(formData.principal_amount) || parseFloat(formData.current_balance),
-      current_balance: parseFloat(formData.current_balance),
-      amount: parseFloat(formData.current_balance), // For backward compatibility
-      remainingAmount: parseFloat(formData.current_balance), // For backward compatibility
-      interest_rate: parseFloat(formData.interest_rate) || 0,
-      is_variable_rate: formData.is_variable_rate,
-      minimum_payment: parseFloat(formData.minimum_payment),
-      due_date: formData.due_date,
-      lender: formData.lender,
-      remaining_term_months: formData.remaining_term_months ? parseInt(formData.remaining_term_months) : undefined,
-      is_tax_deductible: formData.is_tax_deductible,
-      payment_frequency: formData.payment_frequency,
-      is_high_priority: formData.is_high_priority,
-      days_past_due: 0,
-      notes: formData.notes || undefined,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
+    try {
+      setIsLoading(true);
 
-    onAddDebt(newDebt);
-    toast.success('Debt added successfully!');
-    setOpen(false);
-    
-    // Reset form
-    setFormData({
-      name: '',
-      debt_type: 'credit_card',
-      principal_amount: '',
-      current_balance: '',
-      interest_rate: '',
-      is_variable_rate: false,
-      minimum_payment: '',
-      due_date: '',
-      lender: '',
-      remaining_term_months: '',
-      is_tax_deductible: false,
-      payment_frequency: 'monthly',
-      is_high_priority: false,
-      notes: '',
-    });
+      const debtData = {
+        name: formData.name,
+        debt_type: formData.debt_type,
+        principal_amount: parseFloat(formData.principal_amount) || parseFloat(formData.current_balance),
+        current_balance: parseFloat(formData.current_balance),
+        interest_rate: parseFloat(formData.interest_rate) || 0,
+        is_variable_rate: formData.is_variable_rate,
+        minimum_payment: parseFloat(formData.minimum_payment),
+        due_date: formData.due_date,
+        lender: formData.lender,
+        remaining_term_months: formData.remaining_term_months ? parseInt(formData.remaining_term_months) : undefined,
+        is_tax_deductible: formData.is_tax_deductible,
+        payment_frequency: formData.payment_frequency,
+        is_high_priority: formData.is_high_priority,
+        notes: formData.notes || undefined,
+      };
+
+      const newDebt = await apiService.createDebt(debtData);
+
+      onAddDebt(newDebt);
+      toast.success('Debt added successfully!');
+      setOpen(false);
+
+      // Reset form
+      setFormData({
+        name: '',
+        debt_type: 'credit_card',
+        principal_amount: '',
+        current_balance: '',
+        interest_rate: '',
+        is_variable_rate: false,
+        minimum_payment: '',
+        due_date: '',
+        lender: '',
+        remaining_term_months: '',
+        is_tax_deductible: false,
+        payment_frequency: 'monthly',
+        is_high_priority: false,
+        notes: '',
+      });
+    } catch (error) {
+      console.error('Failed to add debt:', error);
+      toast.error('Failed to add debt. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -373,8 +380,10 @@ const AddDebtDialog: React.FC<AddDebtDialogProps> = ({ onAddDebt, trigger }) => 
             <Button
               type="submit"
               className="w-full sm:w-auto order-1 sm:order-2"
+              disabled={isLoading}
             >
-              Add Debt
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? 'Adding...' : 'Add Debt'}
             </Button>
           </div>
         </form>

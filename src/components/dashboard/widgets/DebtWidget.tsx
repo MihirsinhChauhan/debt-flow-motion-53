@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { TrendingDown, AlertCircle, Loader2, ExternalLink, ChevronRight, Edit3, Calendar, MoreHorizontal } from 'lucide-react';
+import { TrendingDown, AlertCircle, Loader2, ExternalLink, ChevronRight, Edit3, Calendar, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import { motion } from 'framer-motion';
@@ -132,9 +132,24 @@ const DebtWidget = () => {
                 <h3 className="text-base font-medium text-foreground">Debt Analysis</h3>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
-              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadDebts();
+                }}
+                disabled={isLoading}
+                title="Refresh debts"
+              >
+                <RefreshCw className={`h-4 w-4 text-muted-foreground ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}>
+                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 

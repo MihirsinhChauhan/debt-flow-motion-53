@@ -50,8 +50,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(userData);
     } catch (err) {
       // Token is invalid, clear it
+      console.log('Auth check failed:', err);
       apiService.clearToken();
       setUser(null);
+      if (err instanceof Error && err.message.includes('session has expired')) {
+        setError('Your session has expired. Please log in again.');
+      }
     } finally {
       setIsLoading(false);
     }

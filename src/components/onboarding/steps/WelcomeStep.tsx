@@ -8,13 +8,11 @@ export const WelcomeStep: React.FC = () => {
   const { startOnboarding, navigateToStep, currentStep, isLoading, error } = useOnboarding();
 
   const handleStart = async () => {
-    // If we're already on the welcome step (onboarding started), navigate to next step
-    if (currentStep === 'welcome') {
-      await navigateToStep('profile_setup');
-    } else {
-      // Otherwise, start the onboarding first
-      await startOnboarding();
-    }
+    // Always start onboarding first to initialize the session
+    // This will set currentStep to 'welcome' and then we can navigate
+    await startOnboarding();
+    // After starting, navigate to the first actual step
+    await navigateToStep('profile_setup');
   };
 
   const features = [

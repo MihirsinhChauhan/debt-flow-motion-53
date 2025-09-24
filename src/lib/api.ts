@@ -232,20 +232,47 @@ export class ApiService {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.getHeaders(),
-        ...options.headers,
-      },
-    });
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.getHeaders(),
+          ...options.headers,
+        },
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+
+        // Handle authentication errors specifically
+        if (response.status === 401) {
+          // Clear the invalid token
+          this.clearToken();
+          console.log('API: 401 error encountered, token cleared');
+          // Provide more specific error messages based on the endpoint
+          if (endpoint.includes('/onboarding/')) {
+            throw new Error('Your session has expired. Please log in again.');
+          }
+          throw new Error('Your session has expired. Please log in again.');
+        }
+
+        // Handle specific error cases
+        if (response.status === 404 && endpoint.includes('/onboarding/status')) {
+          throw new Error('Onboarding not found (404)');
+        }
+
+        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      // Handle network errors and other fetch failures
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your connection and try again.');
+      }
+      // Re-throw our custom errors and other errors
+      throw error;
     }
-
-    return response.json();
   }
 
   // Authentication API
@@ -395,7 +422,7 @@ export class ApiService {
   }
 
   // AI API
-  async getAIInsights(
+  async getBasicAIInsights(
     monthlyPaymentBudget?: number,
     preferredStrategy?: string,
     includeDti: boolean = true
