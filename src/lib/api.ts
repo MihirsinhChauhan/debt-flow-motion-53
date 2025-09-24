@@ -413,11 +413,9 @@ export class ApiService {
   }
 
   // Professional AI Consultation Endpoint - Real backend insights
-  async getProfessionalAIInsights(userId?: string): Promise<ProfessionalAIInsightsResponse> {
-    // If no userId provided, use current user endpoint that backend will resolve
-    const endpoint = userId
-      ? `/api/ai-insights/insights/${userId}`
-      : '/api/ai-insights/insights/me';
+  async getProfessionalAIInsights(): Promise<ProfessionalAIInsightsResponse> {
+    // Use the correct backend endpoint
+    const endpoint = '/api/ai/insights';
 
     return this.request<ProfessionalAIInsightsResponse>(endpoint, {
       // Extended timeout for AI processing (120 seconds)
@@ -428,12 +426,10 @@ export class ApiService {
   }
 
   // Enhanced AI Insights method with comprehensive error handling
-  async getAIInsights(userId?: string): Promise<AIConsultationResponse> {
+  async getAIInsights(): Promise<AIConsultationResponse> {
     try {
-      // If no userId provided, use current user endpoint that backend will resolve
-      const endpoint = userId
-        ? `/api/ai-insights/insights/${userId}`
-        : '/api/ai-insights/insights/me';
+      // Use the correct backend endpoint
+      const endpoint = '/api/ai/insights';
 
       const response = await this.request<AIConsultationResponse>(endpoint, {
         // Extended timeout for AI processing (120 seconds)

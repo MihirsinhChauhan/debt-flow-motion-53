@@ -284,6 +284,55 @@ export interface AIInsightsData {
   metadata: ProfessionalInsightsMetadata;
 }
 
+// Backend API Response Types (Actual response structure)
+
+export interface DebtAnalysisBackend {
+  total_debt: number;
+  debt_count: number;
+  average_interest_rate: number;
+  total_minimum_payments: number;
+  high_priority_count: number;
+  generated_at: string;
+}
+
+export interface RecommendationItemBackend {
+  id: string;
+  user_id: string;
+  recommendation_type: string;
+  title: string;
+  description: string;
+  potential_savings: number;
+  priority_score: number;
+  is_dismissed: boolean;
+  created_at: string;
+}
+
+export interface AIConsultationResponse {
+  debt_analysis: DebtAnalysisBackend;
+  recommendations: RecommendationItemBackend[];
+  professionalRecommendations?: ProfessionalRecommendation[];
+  repaymentPlan?: RepaymentPlan;
+  riskAssessment?: {
+    level: 'low' | 'moderate' | 'high';
+    factors: string[];
+    mitigation_strategies: string[];
+  };
+  dti_analysis?: {
+    dti_ratio: number;
+    monthly_income: number;
+    total_monthly_debt_payments: number;
+    is_healthy: boolean;
+    risk_level: string;
+  };
+  metadata?: {
+    processing_time?: number;
+    quality_score?: number;
+    generated_at: string;
+  };
+}
+
+export interface ProfessionalAIInsightsResponse extends AIConsultationResponse {}
+
 // API Request/Response types for enhanced endpoints
 
 export interface EnhancedInsightsRequest {

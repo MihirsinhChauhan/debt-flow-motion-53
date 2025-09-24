@@ -34,6 +34,7 @@ import ProfessionalRecommendations from '@/components/insights/ProfessionalRecom
 import RepaymentPlanDisplay from '@/components/insights/RepaymentPlanDisplay';
 import RiskAssessmentCard from '@/components/insights/RiskAssessmentCard';
 import EnhancedStrategyComparison from '@/components/insights/EnhancedStrategyComparison';
+import AIRecommendationsDisplay from '@/components/insights/AIRecommendationsDisplay';
 
 // Import enhanced types
 import {
@@ -47,6 +48,9 @@ import {
   RepaymentPlan,
   ProfessionalAIConsultationData,
   AIProcessingState,
+  AIConsultationResponse,
+  DebtAnalysisBackend,
+  RecommendationItemBackend,
   RateLimitState,
   ProfessionalInsightsMetadata
 } from '@/types/ai-insights';
@@ -58,6 +62,7 @@ const Insights = () => {
   // State management
   const [insightsData, setInsightsData] = useState<AIInsightsData | null>(null);
   const [professionalData, setProfessionalData] = useState<ProfessionalAIConsultationData | null>(null);
+  const [aiConsultationData, setAiConsultationData] = useState<AIConsultationResponse | null>(null);
   const [simulationResults, setSimulationResults] = useState<SimulationResults | null>(null);
   const [selectedStrategy, setSelectedStrategy] = useState<DebtStrategy>('avalanche');
   const [loadingStates, setLoadingStates] = useState<LoadingStates>({
@@ -107,9 +112,9 @@ const Insights = () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      const response: ProfessionalAIInsightsResponse = await apiService.getProfessionalAIInsights();
+      const response: AIConsultationResponse = await apiService.getAIInsights();
 
-      setProfessionalData(response);
+      setAiConsultationData(response);
       setProcessingState({
         isLoading: false,
         stage: 'completed',
@@ -117,19 +122,12 @@ const Insights = () => {
         message: 'Professional consultation completed!'
       });
 
-      // Check if fallback was used
-      if (response.metadata.fallback_used) {
-        setFallbackMode(true);
-        toast({
-          title: "Using Fallback Recommendations",
-          description: "AI service is currently rate-limited. Showing expert-curated recommendations.",
-          variant: "default",
-        });
-      } else {
+      // Check if we have professional recommendations
+      if (response.recommendations && response.recommendations.length > 0) {
         setFallbackMode(false);
         toast({
-          title: "Professional AI Consultation Ready",
-          description: `Analysis completed in ${response.metadata.processing_time.toFixed(1)}s`,
+          title: "AI Consultation Ready",
+          description: `Analysis completed with ${response.recommendations.length} recommendations`,
           variant: "default",
         });
       }
@@ -210,12 +208,12 @@ const Insights = () => {
 
   // Handle data refresh
   const handleRefresh = useCallback(() => {
-    if (professionalData || processingState.stage === 'completed') {
+    if (aiConsultationData || professionalData || processingState.stage === 'completed') {
       loadProfessionalInsights();
     } else {
       loadFallbackInsights();
     }
-  }, [loadProfessionalInsights, loadFallbackInsights, professionalData, processingState.stage]);
+  }, [loadProfessionalInsights, loadFallbackInsights, aiConsultationData, professionalData, processingState.stage]);
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -240,6 +238,45 @@ const Insights = () => {
   // Show basic loading state for fallback insights
   if (loadingStates.insights && fallbackMode) {
     return <AIInsightsLoadingState />;
+  }
+
+  // Show real AI consultation data if available
+  if (aiConsultationData && !fallbackMode) {
+    return (
+      <div className="space-y-8">
+        {/* Header Section */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3">
+              <div className="text-primary">
+                <Brain className="h-8 w-8" />
+              </div>
+              AI Insights
+              <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 text-sm">
+                <Star className="h-3 w-3 mr-1" />
+                AI-Powered Analysis
+              </Badge>
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Professional debt consultation powered by AI with Indian financial context
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              Refresh Analysis
+            </Button>
+          </div>
+        </div>
+
+        {/* AI Recommendations Display */}
+        <AIRecommendationsDisplay
+          debtAnalysis={aiConsultationData.debt_analysis}
+          recommendations={aiConsultationData.recommendations}
+        />
+      </div>
+    );
   }
 
   // Show professional consultation if available

@@ -20,7 +20,7 @@ import DebtDetailView from "./pages/DebtDetailView";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = React.memo(({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute = React.memo(({ children, requireOnboarding = true }: { children: React.ReactNode, requireOnboarding?: boolean }) => {
   const { user, isLoading: authLoading } = useAuth();
   const { isCompleted, isLoading: onboardingLoading, currentStep } = useOnboarding();
 
@@ -50,6 +50,11 @@ const ProtectedRoute = React.memo(({ children }: { children: React.ReactNode }) 
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Skip onboarding check if not required (e.g., for dashboard when accessed via login)
+  if (!requireOnboarding) {
+    return <>{children}</>;
   }
 
   // Only redirect to onboarding if we're sure the user hasn't completed it
@@ -82,7 +87,7 @@ const AppContent = () => {
           !user ? <Index /> : <Navigate to="/dashboard" replace />
         } />
         <Route path="/dashboard" element={
-          <ProtectedRoute>
+          <ProtectedRoute requireOnboarding={false}>
             <AppLayout>
               <Dashboard />
             </AppLayout>

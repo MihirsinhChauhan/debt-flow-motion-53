@@ -30,13 +30,14 @@ const Auth = () => {
       return;
     }
 
-    const success = type === 'login' 
+    const success = type === 'login'
       ? await login(formData.email, formData.password)
       : await signup(formData.email, formData.password, formData.full_name);
 
     if (success) {
       toast.success(type === 'login' ? 'Welcome back!' : 'Account created successfully!');
-      navigate('/dashboard');
+      // Login goes directly to dashboard, signup goes to onboarding
+      navigate(type === 'login' ? '/dashboard' : '/onboarding');
     } else {
       toast.error(type === 'login' ? 'Invalid credentials' : 'Email already exists');
     }
