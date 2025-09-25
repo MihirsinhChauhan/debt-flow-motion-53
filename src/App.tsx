@@ -7,6 +7,7 @@ import React, { useMemo } from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { OnboardingProvider, useOnboarding } from "@/context/OnboardingContext";
+import { EnvironmentSwitcher } from "@/components/EnvironmentSwitcher";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -153,6 +154,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <AppContent />
+            <EnvironmentSwitcher />
           </TooltipProvider>
         </OnboardingProvider>
       </AuthProvider>

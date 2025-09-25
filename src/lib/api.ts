@@ -1,5 +1,6 @@
 // API Service Layer for DebtEase
 // Handles all backend communication with proper TypeScript types
+// Enhanced with environment configuration and better error handling
 
 import { Debt, DebtSummary, UserProfile, AIRecommendation, PaymentHistoryItem, OnboardingProgress, OnboardingProfileData, OnboardingGoalData } from '../types/debt';
 import {
@@ -13,9 +14,11 @@ import {
   OptimizationMetricsRequest,
   OptimizationMetricsResponse
 } from '../types/ai-insights';
+import { config, logger } from './config';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// API Configuration using centralized config
+const API_BASE_URL = config.apiBaseUrl;
+const API_URL = config.apiUrl;
 
 // API Response types
 interface ApiResponse<T> {
@@ -202,29 +205,46 @@ interface AIConsultationResponse {
 // Enhanced API Service Class with robust error handling and retry logic
 export class ApiService {
   private baseUrl: string;
+  private apiUrl: string;
   private token: string | null = null;
   private tokenExpiresAt: Date | null = null;
-  private debugMode: boolean = true;
+  private debugMode: boolean = config.debug;
   private requestId: number = 0;
 
-  constructor(baseUrl: string = API_BASE_URL) {
+  constructor(baseUrl: string = API_BASE_URL, apiUrl: string = API_URL) {
     this.baseUrl = baseUrl;
+    this.apiUrl = apiUrl;
     this.token = localStorage.getItem('access_token');
     const expiresAt = localStorage.getItem('token_expires_at');
+
     if (expiresAt) {
       this.tokenExpiresAt = new Date(expiresAt);
     }
-    this.log('ApiService initialized', { hasToken: !!this.token, baseUrl: this.baseUrl });
+
+    // Log initialization in debug mode
+    logger.debug('ApiService initialized', {
+      baseUrl: this.baseUrl,
+      apiUrl: this.apiUrl,
+      environment: config.env,
+      hasToken: !!this.token,
+      tokenExpired: this.isTokenExpired()
+    });
   }
 
   private log(message: string, data?: any) {
-    if (this.debugMode) {
-      console.log(`[API] ${message}`, data || '');
-    }
+    logger.debug(message, data || '');
   }
 
   private error(message: string, data?: any) {
-    console.error(`[API ERROR] ${message}`, data || '');
+    logger.error(message, data || '');
+  }
+
+  private info(message: string, data?: any) {
+    logger.info(message, data || '');
+  }
+
+  private warn(message: string, data?: any) {
+    logger.warn(message, data || '');
   }
 
   // Enhanced authentication methods with lifecycle management
@@ -293,7 +313,8 @@ export class ApiService {
     maxRetries: number = 3
   ): Promise<T> {
     const requestId = this.requestId;
-    const url = `${this.baseUrl}${endpoint}`;
+    // Use apiUrl for API endpoints, baseUrl for health checks
+    const url = endpoint.startsWith('/api') ? `${this.baseUrl}${endpoint}` : endpoint.includes('health') ? `${this.baseUrl}${endpoint}` : `${this.apiUrl}${endpoint}`;
     const skipAuth = options.headers && 'skip-auth' in options.headers;
 
     this.log(`Request ${requestId}: ${options.method || 'GET'} ${endpoint}`, {
@@ -487,7 +508,7 @@ export class ApiService {
     formData.append('username', email);
     formData.append('password', password);
 
-    const response = await fetch(`${this.baseUrl}/api/auth/login/form`, {
+    const response = await fetch(`${this.apiUrl}/auth/login/form`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
