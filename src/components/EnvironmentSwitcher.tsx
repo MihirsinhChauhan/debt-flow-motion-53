@@ -15,10 +15,8 @@ export const EnvironmentSwitcher: React.FC<EnvironmentSwitcherProps> = ({ classN
   const [currentEnv, setCurrentEnv] = useState<Environment>(config.env);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Only show in development mode
-  if (!config.debug) {
-    return null;
-  }
+  // Hide the environment switcher completely
+  return null;
 
   const handleEnvironmentChange = (env: Environment) => {
     logger.info(`Environment switch requested: ${currentEnv} -> ${env}`);
