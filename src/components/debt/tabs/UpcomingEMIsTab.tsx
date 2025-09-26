@@ -10,7 +10,7 @@ import {
   CheckCircle,
   Clock,
   Bell,
-  DollarSign,
+  IndianRupee,
   Filter,
   ArrowRight,
   Home,
@@ -22,6 +22,8 @@ import {
 import { motion } from 'framer-motion';
 import { Debt } from '@/types/debt';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
+import PaymentDialog from '@/components/payments/PaymentDialog';
+import { usePaymentOperations } from '@/hooks/usePaymentOperations';
 
 interface UpcomingPayment {
   id: string;
@@ -41,6 +43,7 @@ interface UpcomingPayment {
 interface UpcomingEMIsTabProps {
   debts: Debt[];
   isLoading?: boolean;
+  onDebtUpdate?: () => void;
 }
 
 const getDebtIcon = (type: string) => {
@@ -111,9 +114,18 @@ const getStatusConfig = (status: string, daysUntilDue: number) => {
 
 const UpcomingEMIsTab: React.FC<UpcomingEMIsTabProps> = ({
   debts,
-  isLoading = false
+  isLoading = false,
+  onDebtUpdate
 }) => {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'due_today'>('all');
+
+  // Payment operations hook
+  const { processPayment, isLoading: isPaymentLoading } = usePaymentOperations(
+    (debtId: string, newBalance: number) => {
+      // Callback when payment is successful
+      onDebtUpdate?.();
+    }
+  );
 
   // Generate upcoming payments from debts
   const upcomingPayments = useMemo(() => {
@@ -234,71 +246,124 @@ const UpcomingEMIsTab: React.FC<UpcomingEMIsTabProps> = ({
     const StatusIcon = getStatusConfig(payment.status, payment.days_until_due).icon;
     const config = getStatusConfig(payment.status, payment.days_until_due);
 
+    // Find the corresponding debt for this payment
+    const correspondingDebt = debts.find(debt => debt.id === payment.debt_id);
+
+    // Handle payment submission
+    const handlePaymentSubmit = async (paymentData: any) => {
+      if (!correspondingDebt) {
+        console.error('Debt not found for payment:', payment.debt_id);
+        return false;
+      }
+      return await processPayment(correspondingDebt, paymentData);
+    };
+
     return (
       <motion.div
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.3 }}
         className={cn(
-          'p-4 rounded-lg border-l-4 transition-all hover:shadow-md',
+          'p-3 sm:p-4 rounded-lg border-l-4 transition-all hover:shadow-md',
           config.bgColor,
           config.borderColor
         )}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Icon className="h-4 w-4 text-gray-600" />
-            </div>
-
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-semibold text-gray-900">{payment.debt_name}</h4>
-                <Badge variant="outline" className="text-xs">
-                  {payment.payment_type}
-                </Badge>
+        {/* Mobile-optimized layout */}
+        <div className="space-y-2 sm:space-y-3">
+          {/* Header Section */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 flex-1 min-w-0">
+              <div className="p-1.5 sm:p-2 bg-white rounded-md shadow-sm flex-shrink-0">
+                <Icon className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" />
               </div>
 
-              <p className="text-sm text-gray-600 mb-2">{payment.lender}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                  <h4 className="font-semibold text-gray-900 text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{payment.debt_name}</h4>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs px-1 py-0">
+                    {payment.payment_type}
+                  </Badge>
+                </div>
 
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="capitalize">{payment.debt_type.replace('_', ' ')}</span>
-                {payment.is_automated && (
-                  <Badge variant="secondary" className="text-xs">
-                    Auto-pay
-                  </Badge>
-                )}
-                {payment.reminder_set && (
-                  <Badge variant="outline" className="text-xs">
-                    <Bell className="h-3 w-3 mr-1" />
-                    Reminder
-                  </Badge>
-                )}
+                <p className="text-[10px] sm:text-xs text-gray-600 mb-1 sm:mb-2 truncate max-w-[80px] sm:max-w-none">{payment.lender}</p>
+
+                {/* Mobile: Stack badges vertically */}
+                <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-gray-500 flex-wrap">
+                  <span className="capitalize">{payment.debt_type.replace('_', ' ')}</span>
+                  {payment.is_automated && (
+                    <Badge variant="secondary" className="text-[10px] sm:text-xs px-1 py-0">
+                      Auto-pay
+                    </Badge>
+                  )}
+                  {payment.reminder_set && (
+                    <Badge variant="outline" className="text-[10px] sm:text-xs px-1 py-0">
+                      <Bell className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5" />
+                      Reminder
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Amount and Status - Mobile responsive */}
+            <div className="text-right flex-shrink-0 min-w-0">
+              <div className="text-xs sm:text-sm lg:text-base font-bold text-gray-900 mb-0.5 sm:mb-1">
+                {formatCurrency(payment.amount)}
+              </div>
+              <div className={cn('flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs justify-end', config.textColor)}>
+                <StatusIcon className="h-2 w-2 sm:h-3 sm:w-3 flex-shrink-0" />
+                <span className="whitespace-nowrap">{config.label}</span>
               </div>
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-lg font-bold text-gray-900 mb-1">
-              {formatCurrency(payment.amount)}
+          {/* Action Buttons - Improved Mobile Layout */}
+          <div className="flex items-center justify-between gap-2">
+            {/* Secondary actions - Mobile layout */}
+            <div className="flex gap-1 sm:gap-2 sm:hidden">
+              <Button variant="outline" size="sm" className="h-6 text-[10px] px-2">
+                <Bell className="h-2 w-2 mr-0.5" />
+                <span className="hidden xs:inline">Remind</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2">
+                <ArrowRight className="h-2 w-2 mr-0.5" />
+                <span className="hidden xs:inline">Details</span>
+              </Button>
             </div>
-            <div className={cn('flex items-center gap-1 text-xs', config.textColor)}>
-              <StatusIcon className="h-3 w-3" />
-              <span>{config.label}</span>
+
+            {/* Primary action - Compact mobile button */}
+            <div className="flex-shrink-0">
+              {correspondingDebt ? (
+                <PaymentDialog
+                  debt={correspondingDebt}
+                  onPaymentSubmit={handlePaymentSubmit}
+                  isLoading={isPaymentLoading}
+                  trigger={
+                    <Button size="sm" className="h-6 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3">
+                      <IndianRupee className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                      Pay
+                    </Button>
+                  }
+                />
+              ) : (
+                <Button size="sm" className="h-6 sm:h-8 text-[10px] sm:text-xs px-2 sm:px-3" disabled>
+                  <IndianRupee className="h-2 w-2 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                  Pay
+                </Button>
+              )}
+            </div>
+
+            {/* Desktop layout */}
+            <div className="hidden sm:flex items-center gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs">
+                Set Reminder
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 text-xs">
+                Details
+              </Button>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 mt-4">
-          <Button size="sm" className="flex-1">
-            Pay Now
-          </Button>
-          <Button variant="outline" size="sm">
-            Set Reminder
-          </Button>
-          <Button variant="ghost" size="sm">
-            Details
-          </Button>
         </div>
       </motion.div>
     );
@@ -326,8 +391,8 @@ const UpcomingEMIsTab: React.FC<UpcomingEMIsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Summary Cards - Responsive Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -377,17 +442,18 @@ const UpcomingEMIsTab: React.FC<UpcomingEMIsTabProps> = ({
       {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
+          {/* Mobile: Stack title and tabs vertically */}
+          <div className="space-y-3 sm:space-y-0">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
               Payment Timeline
             </CardTitle>
-            <Tabs value={filter} onValueChange={(value: any) => setFilter(value)}>
-              <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="overdue">Overdue</TabsTrigger>
-                <TabsTrigger value="due_today">Due Today</TabsTrigger>
-                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+            <Tabs value={filter} onValueChange={(value: any) => setFilter(value)} className="w-full">
+              <TabsList className="w-full sm:w-auto grid grid-cols-4 sm:flex">
+                <TabsTrigger value="all" className="text-xs sm:text-sm px-2 sm:px-3">All</TabsTrigger>
+                <TabsTrigger value="overdue" className="text-xs sm:text-sm px-2 sm:px-3">Overdue</TabsTrigger>
+                <TabsTrigger value="due_today" className="text-xs sm:text-sm px-2 sm:px-3">Due Today</TabsTrigger>
+                <TabsTrigger value="upcoming" className="text-xs sm:text-sm px-2 sm:px-3">Upcoming</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -440,27 +506,30 @@ const UpcomingEMIsTab: React.FC<UpcomingEMIsTabProps> = ({
 
       {/* Quick Actions */}
       <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+        <CardHeader className="pb-2 sm:pb-3">
+          <CardTitle className="text-sm sm:text-base">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button variant="outline" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Pay All Due
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Set Reminders
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Schedule Payments
-            </Button>
-            <Button variant="outline" className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Setup Auto-pay
-            </Button>
+        <CardContent className="p-3 sm:p-6">
+          <div className="space-y-2 sm:space-y-3">
+            {/* Mobile: Compact grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              <Button variant="outline" className="flex items-center justify-center gap-1 sm:gap-2 h-8 sm:h-10">
+                <IndianRupee className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Pay All</span>
+              </Button>
+              <Button variant="outline" className="flex items-center justify-center gap-1 sm:gap-2 h-8 sm:h-10">
+                <Bell className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Reminders</span>
+              </Button>
+              <Button variant="outline" className="flex items-center justify-center gap-1 sm:gap-2 h-8 sm:h-10">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Schedule</span>
+              </Button>
+              <Button variant="outline" className="flex items-center justify-center gap-1 sm:gap-2 h-8 sm:h-10">
+                <Filter className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Auto-pay</span>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

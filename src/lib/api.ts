@@ -28,11 +28,29 @@ interface ApiResponse<T> {
 }
 
 interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
   user: {
     id: string;
     email: string;
     full_name?: string;
     monthly_income?: number;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+  expires_at: string;
+}
+
+interface RegisterResponse {
+  user: {
+    id: string;
+    email: string;
+    full_name?: string;
+    monthly_income?: number;
+    created_at: string;
+    updated_at: string;
   };
   session_expires_at: string;
   message: string;
@@ -306,188 +324,42 @@ export class ApiService {
     return headers;
   }
 
-  private async requestWithRetry<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    retryCount: number = 0,
-    maxRetries: number = 3
-  ): Promise<T> {
-    const requestId = this.requestId;
-    // Use apiUrl for API endpoints, baseUrl for health checks
-    const url = endpoint.startsWith('/api') ? `${this.baseUrl}${endpoint}` : endpoint.includes('health') ? `${this.baseUrl}${endpoint}` : `${this.apiUrl}${endpoint}`;
-    const skipAuth = options.headers && 'skip-auth' in options.headers;
-
-    this.log(`Request ${requestId}: ${options.method || 'GET'} ${endpoint}`, {
-      retryCount,
-      hasToken: !!this.token,
-      skipAuth
-    });
-
-    try {
-      const headers = skipAuth ?
-        { ...options.headers } :
-        { ...this.getHeaders(), ...options.headers };
-
-      // Remove skip-auth flag from headers
-      if ('skip-auth' in headers) {
-        delete headers['skip-auth'];
-      }
-
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      this.log(`Response ${requestId}: ${response.status} ${response.statusText}`);
-
-      if (!response.ok) {
-        return this.handleErrorResponse(response, endpoint, options, retryCount, maxRetries, requestId);
-      }
-
-      const data = await response.json();
-      this.log(`Success ${requestId}:`, { dataType: typeof data, hasData: !!data });
-      return data;
-    } catch (error) {
-      return this.handleRequestError(error, endpoint, options, retryCount, maxRetries, requestId);
-    }
-  }
-
-  private async handleErrorResponse<T>(
-    response: Response,
-    endpoint: string,
-    options: RequestInit,
-    retryCount: number,
-    maxRetries: number,
-    requestId: number
-  ): Promise<T> {
-    const errorData = await response.json().catch(() => ({}));
-    this.error(`Request ${requestId} failed:`, {
-      status: response.status,
-      statusText: response.statusText,
-      errorData,
-      endpoint,
-      retryCount
-    });
-
-    // Handle authentication errors with smart retry logic
-    if (response.status === 401) {
-      return this.handle401Error(endpoint, options, retryCount, maxRetries, errorData, requestId);
-    }
-
-    // Handle rate limiting with exponential backoff
-    if (response.status === 429) {
-      if (retryCount < maxRetries) {
-        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-        this.log(`Rate limited, retrying in ${backoffDelay}ms`, { requestId, retryCount });
-        await this.delay(backoffDelay);
-        return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
-      }
-      throw new Error('Rate limited. Please try again later.');
-    }
-
-    // Handle server errors with retry
-    if (response.status >= 500 && retryCount < maxRetries) {
-      const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-      this.log(`Server error, retrying in ${backoffDelay}ms`, { requestId, retryCount });
-      await this.delay(backoffDelay);
-      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
-    }
-
-    // Handle specific error cases
-    if (response.status === 404 && endpoint.includes('/onboarding/status')) {
-      throw new Error('Onboarding not found (404)');
-    }
-
-    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  private async handle401Error<T>(
-    endpoint: string,
-    options: RequestInit,
-    retryCount: number,
-    maxRetries: number,
-    errorData: any,
-    requestId: number
-  ): Promise<T> {
-    this.error(`401 Unauthorized for request ${requestId}`, {
-      endpoint,
-      hasToken: !!this.token,
-      tokenExpired: this.isTokenExpired(),
-      errorData
-    });
-
-    // Check if this is a session corruption issue vs expired token
-    const isSessionCorruption = errorData.detail?.includes('Expected unicode, got Delete') ||
-                                errorData.detail?.includes('cache') ||
-                                errorData.detail?.includes('session');
-
-    if (isSessionCorruption && retryCount < 2) {
-      // For session corruption, try once more with the same token
-      this.log(`Suspected session corruption, retrying request ${requestId}`, { retryCount });
-      await this.delay(1000); // Brief delay for server recovery
-      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
-    }
-
-    // For critical operations, don't immediately clear the token
-    const isCriticalOperation = endpoint.includes('/debts/') ||
-                               endpoint.includes('/auth/me') ||
-                               endpoint.includes('/onboarding/');
-
-    if (isCriticalOperation && retryCount === 0) {
-      this.log(`Critical operation failed, attempting one retry with fresh validation`, { requestId });
-      // Brief delay then retry once more
-      await this.delay(500);
-      return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
-    }
-
-    // After retries failed, clear token and throw appropriate error
-    this.clearToken();
-    const errorMessage = isSessionCorruption ?
-      'Session was corrupted on server. Please log in again.' :
-      'Your session has expired. Please log in again.';
-
-    throw new Error(errorMessage);
-  }
-
-  private async handleRequestError<T>(
-    error: any,
-    endpoint: string,
-    options: RequestInit,
-    retryCount: number,
-    maxRetries: number,
-    requestId: number
-  ): Promise<T> {
-    this.error(`Network error for request ${requestId}:`, {
-      error: error.message,
-      endpoint,
-      retryCount
-    });
-
-    // Handle network errors and other fetch failures
-    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-      if (retryCount < maxRetries) {
-        const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-        this.log(`Network error, retrying in ${backoffDelay}ms`, { requestId, retryCount });
-        await this.delay(backoffDelay);
-        return this.requestWithRetry(endpoint, options, retryCount + 1, maxRetries);
-      }
-      throw new Error('Network error. Please check your connection and try again.');
-    }
-
-    // Re-throw custom errors and other errors
-    throw error;
-  }
-
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    return this.requestWithRetry<T>(endpoint, options);
+    const requestId = ++this.requestId;
+    // Use baseUrl for all endpoints
+    const url = `${this.baseUrl}${endpoint}`;
+
+    this.log(`Request ${requestId}: ${options.method || 'GET'} ${endpoint}`);
+
+    const headers = { ...this.getHeaders(), ...options.headers };
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    this.log(`Response ${requestId}: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+
+      // Handle 401 by clearing token
+      if (response.status === 401) {
+        this.clearToken();
+        throw new Error('Authentication required. Please log in again.');
+      }
+
+      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    this.log(`Success ${requestId}:`, { dataType: typeof data });
+    return data;
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 
   // Token validation before critical operations
   private async ensureValidToken(operation: string): Promise<void> {
@@ -508,12 +380,11 @@ export class ApiService {
     formData.append('username', email);
     formData.append('password', password);
 
-    const response = await fetch(`${this.apiUrl}/auth/login/form`, {
+    const response = await fetch(`${this.baseUrl}/api/auth/login/form`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'skip-auth': 'true' // Skip auth header for login
-      } as any,
+      },
       body: formData,
     });
 
@@ -528,20 +399,38 @@ export class ApiService {
       expiresAt: data.expires_at
     });
 
-    // Server returns session token as 'access_token'
+    // Store the access token from login response
     this.setToken(data.access_token, data.expires_at);
     return data;
   }
 
-  async register(email: string, password: string, fullName: string): Promise<UserResponse> {
-    return this.request<UserResponse>('/api/auth/register', {
+  async register(email: string, password: string, fullName: string, monthlyIncome: number = 50000): Promise<RegisterResponse> {
+    this.log('Attempting registration', { email, fullName });
+
+    const response = await fetch(`${this.baseUrl}/api/auth/register`, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         email,
         password,
         full_name: fullName,
+        monthly_income: monthlyIncome,
       }),
     });
+
+    if (!response.ok) {
+      this.error('Registration failed', { status: response.status, statusText: response.statusText });
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Registration failed');
+    }
+
+    const data = await response.json();
+    this.log('Registration successful', { hasUser: !!data.user });
+
+    // Registration response doesn't include access_token, just user data
+    return data;
   }
 
   async getCurrentUser(): Promise<UserProfile> {
@@ -670,6 +559,40 @@ export class ApiService {
         amount,
         payment_date: paymentDate,
         notes,
+      }),
+    });
+  }
+
+  // Enhanced payment recording with breakdown
+  async recordPaymentWithBreakdown(
+    debtId: string,
+    paymentData: {
+      amount: number;
+      paymentDate: string;
+      principalPortion: number;
+      interestPortion: number;
+      notes?: string;
+    }
+  ): Promise<PaymentHistoryItem> {
+    return this.request<PaymentHistoryItem>(`/api/debts/${debtId}/payment`, {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: paymentData.amount,
+        payment_date: paymentData.paymentDate,
+        principal_portion: paymentData.principalPortion,
+        interest_portion: paymentData.interestPortion,
+        notes: paymentData.notes,
+      }),
+    });
+  }
+
+  // Update debt after payment (balance update)
+  async updateDebtAfterPayment(debtId: string, newBalance: number, notes?: string): Promise<Debt> {
+    return this.request<Debt>(`/api/debts/${debtId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        current_balance: newBalance,
+        notes: notes || `Balance updated after payment on ${new Date().toISOString().split('T')[0]}`,
       }),
     });
   }
@@ -1012,6 +935,7 @@ export const apiService = new ApiService();
 export type {
   ApiResponse,
   AuthResponse,
+  RegisterResponse,
   UserResponse,
   AIInsightsResponse,
   ProfessionalAIInsightsResponse,
