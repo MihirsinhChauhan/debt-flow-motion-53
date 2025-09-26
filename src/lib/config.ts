@@ -16,20 +16,71 @@ export interface AppConfig {
 }
 
 /**
+ * Validate environment configuration
+ */
+const validateEnvironment = (env: string): Environment => {
+  const validEnvironments: Environment[] = ['development', 'staging', 'production'];
+
+  if (!validEnvironments.includes(env as Environment)) {
+    console.warn(`Invalid VITE_APP_ENV: "${env}". Defaulting to "development"`);
+    return 'development';
+  }
+
+  return env as Environment;
+};
+
+/**
+ * Validate URL format
+ */
+const validateUrl = (url: string, name: string): string => {
+  try {
+    new URL(url);
+    return url;
+  } catch {
+    console.error(`Invalid URL for ${name}: "${url}". Using default.`);
+    return 'http://localhost:8000';
+  }
+};
+
+/**
  * Get current environment configuration
  */
 export const getConfig = (): AppConfig => {
   // Get environment from build-time variable or default to development
-  const env = (import.meta.env.VITE_APP_ENV as Environment) || 'development';
+  const env = validateEnvironment(import.meta.env.VITE_APP_ENV || 'development');
 
-  return {
+  // Validate URLs
+  const apiBaseUrl = validateUrl(
+    import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+    'VITE_API_BASE_URL'
+  );
+
+  const apiUrl = validateUrl(
+    import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    'VITE_API_URL'
+  );
+
+  const config = {
     env,
-    apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
-    apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
+    apiBaseUrl,
+    apiUrl,
     appName: import.meta.env.VITE_APP_NAME || 'DebtEase',
     debug: import.meta.env.VITE_DEBUG === 'true' || env === 'development',
     logLevel: (import.meta.env.VITE_LOG_LEVEL as LogLevel) || (env === 'development' ? 'debug' : 'error'),
   };
+
+  // Log configuration validation warnings in development
+  if (config.debug) {
+    if (apiBaseUrl.includes('localhost') && env === 'production') {
+      console.warn('⚠️  Production environment is using localhost URLs!');
+    }
+
+    if (apiBaseUrl.includes('onrender.com') && env === 'development') {
+      console.warn('⚠️  Development environment is using production URLs!');
+    }
+  }
+
+  return config;
 };
 
 /**
@@ -140,13 +191,56 @@ export const switchEnvironment = (targetEnv: Environment): AppConfig => {
  */
 export const getEnvironmentInfo = () => ({
   environment: config.env,
+  apiBaseUrl: config.apiBaseUrl,
   apiUrl: config.apiUrl,
   debug: config.debug,
   logLevel: config.logLevel,
   appName: config.appName,
 });
 
+/**
+ * Create environment indicator for development
+ */
+export const createEnvironmentIndicator = (): string => {
+  if (!config.debug) return '';
+
+  const indicator = `🔧 ${config.env.toUpperCase()} | ${config.apiBaseUrl}`;
+  return indicator;
+};
+
+/**
+ * Validate current configuration and warn about issues
+ */
+export const validateCurrentConfig = (): boolean => {
+  let isValid = true;
+
+  // Check for common misconfigurations
+  if (config.env === 'development' && config.apiBaseUrl.includes('onrender.com')) {
+    logger.warn('Development environment pointing to production server!');
+    isValid = false;
+  }
+
+  if (config.env === 'production' && config.apiBaseUrl.includes('localhost')) {
+    logger.error('Production environment pointing to localhost!');
+    isValid = false;
+  }
+
+  // Check URL accessibility (basic validation)
+  if (!config.apiBaseUrl || !config.apiUrl) {
+    logger.error('Missing API URLs in configuration!');
+    isValid = false;
+  }
+
+  return isValid;
+};
+
 // Log current configuration on startup (debug mode only)
 if (config.debug) {
   logger.info('DebtEase Configuration:', getEnvironmentInfo());
+  logger.info('Environment Indicator:', createEnvironmentIndicator());
+
+  // Validate configuration
+  if (!validateCurrentConfig()) {
+    logger.warn('Configuration validation failed - check your environment variables');
+  }
 }

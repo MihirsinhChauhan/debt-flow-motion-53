@@ -7,7 +7,6 @@ import React, { useMemo } from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { OnboardingProvider, useOnboarding } from "@/context/OnboardingContext";
-import { EnvironmentSwitcher } from "@/components/EnvironmentSwitcher";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
@@ -22,8 +21,8 @@ import DebtDetailView from "./pages/DebtDetailView";
 const queryClient = new QueryClient();
 
 const ProtectedRoute = React.memo(({ children, requireOnboarding = true }: { children: React.ReactNode, requireOnboarding?: boolean }) => {
-  const { user, isLoading: authLoading, error: authError } = useAuth();
-  const { isCompleted, isLoading: onboardingLoading, currentStep, error: onboardingError } = useOnboarding();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isCompleted, isLoading: onboardingLoading, currentStep } = useOnboarding();
 
   // Memoize loading components to prevent unnecessary re-renders
   const authLoadingComponent = useMemo(() => (
@@ -44,47 +43,30 @@ const ProtectedRoute = React.memo(({ children, requireOnboarding = true }: { chi
     </div>
   ), []);
 
-  // Handle authentication errors
-  if (authError && authError.includes('session has expired')) {
-    console.log('ProtectedRoute: Authentication error detected, redirecting to auth');
-    return <Navigate to="/auth" replace />;
-  }
-
   // Early returns for loading states
   if (authLoading) {
     return authLoadingComponent;
   }
 
   if (!user) {
-    console.log('ProtectedRoute: No user found, redirecting to auth');
     return <Navigate to="/auth" replace />;
   }
 
   // Skip onboarding check if not required (e.g., for dashboard when accessed via login)
   if (!requireOnboarding) {
-    console.log('ProtectedRoute: Onboarding not required, allowing access');
     return <>{children}</>;
   }
 
-  // Handle onboarding authentication errors
-  if (onboardingError && (onboardingError.includes('session has expired') || onboardingError.includes('Authentication issue'))) {
-    console.log('ProtectedRoute: Onboarding authentication error, redirecting to auth');
-    return <Navigate to="/auth" replace />;
-  }
-
-  // Only redirect to onboarding if we're sure the user hasn't completed it
-  // Wait for onboarding status to load first, but only if auth is complete
+  // Wait for onboarding status to load
   if (onboardingLoading) {
     return onboardingLoadingComponent;
   }
 
-  // Check if user needs onboarding - also check currentStep to avoid race conditions
+  // Check if user needs onboarding
   if (!isCompleted && currentStep !== 'completed') {
-    console.log('ProtectedRoute: Redirecting to onboarding - isCompleted:', isCompleted, 'currentStep:', currentStep);
     return <Navigate to="/onboarding" replace />;
   }
 
-  console.log('ProtectedRoute: Allowing access to protected route - isCompleted:', isCompleted, 'currentStep:', currentStep);
   return <>{children}</>;
 });
 
@@ -154,7 +136,6 @@ const App = () => (
             <Toaster />
             <Sonner />
             <AppContent />
-            <EnvironmentSwitcher />
           </TooltipProvider>
         </OnboardingProvider>
       </AuthProvider>
