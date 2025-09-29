@@ -1,73 +1,149 @@
-# Welcome to your Lovable project
+# Debtease Frontend - React Client Application
 
-## Project info
+The Debtease frontend is a modern, responsive React application that provides users with an intuitive interface for managing their debts, tracking financial progress, and receiving AI-powered insights.
 
-**URL**: https://lovable.dev/projects/46f88e3c-efd2-419e-8aa0-93c3467a1688
+## 🎯 Overview
 
-## How can I edit this code?
+This is the client-side application for Debtease, built with React and TypeScript. It features a beautiful, accessible UI designed for both desktop and mobile users, providing seamless debt management capabilities with real-time AI coaching.
 
-There are several ways of editing your application.
+## 🚀 Key Features
 
-**Use Lovable**
+- **Modern React Architecture**: Built with React 18, TypeScript, and Vite for optimal performance
+- **Responsive Design**: Mobile-first approach with Tailwind CSS and shadcn/ui components
+- **Real-time Updates**: WebSocket integration for live debt tracking and notifications
+- **Progressive Web App**: Offline capabilities and native app-like experience
+- **Accessibility First**: WCAG compliant with keyboard navigation and screen reader support
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/46f88e3c-efd2-419e-8aa0-93c3467a1688) and start prompting.
+## 🛠️ Technology Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite for fast development and optimized production builds
+- **Styling**: Tailwind CSS with shadcn/ui component library
+- **State Management**: React Context API with custom hooks
+- **Routing**: React Router for seamless navigation
+- **Testing**: Vitest for unit and integration tests
+- **Deployment**: Optimized for Vercel deployment
 
-**Use your preferred IDE**
+## 📦 Installation & Setup
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
+- Node.js 18+ and npm (or yarn/pnpm)
+- Git for version control
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Development Setup
 
-Follow these steps:
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+2. **Start development server**
+   ```bash
+   npm run dev
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+3. **Access the application**
+   - Development: http://localhost:5173
+   - The app will automatically reload when you make changes
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Available Scripts
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Create production build
+- `npm run preview` - Preview production build locally
+- `npm run test` - Run test suite
+- `npm run lint` - Check code for linting errors
+- `npm run type-check` - Run TypeScript type checking
+
+## 📂 Project Structure
+
+```
+src/
+├── components/           # Reusable UI components
+│   ├── ui/              # Base UI components (buttons, inputs, etc.)
+│   ├── auth/            # Authentication components
+│   ├── debt/            # Debt management components
+│   ├── dashboard/       # Main dashboard components
+│   ├── insights/        # AI insights and analytics
+│   └── ...
+├── pages/               # Main application pages/routes
+├── hooks/               # Custom React hooks
+├── context/             # React context providers
+├── lib/                 # Utility functions and configurations
+├── types/               # TypeScript type definitions
+└── integrations/        # External service integrations
 ```
 
-**Edit a file directly in GitHub**
+## 🎨 Component Architecture
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Core Components
+- **Layout Components**: Navigation, sidebar, header
+- **Feature Components**: Debt widgets, payment trackers, AI insights
+- **UI Components**: Buttons, forms, modals, charts
+- **Utility Components**: Loading states, error boundaries, notifications
 
-**Use GitHub Codespaces**
+### State Management
+- **AuthContext**: User authentication state
+- **OnboardingContext**: New user setup flow
+- **ThemeContext**: Dark/light theme management
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🔧 Development Guidelines
 
-## What technologies are used for this project?
+### Code Style
+- Use TypeScript for all new code
+- Follow ESLint configuration for code consistency
+- Use functional components with hooks
+- Implement proper error boundaries
 
-This project is built with:
+### Component Guidelines
+- Keep components small and focused on single responsibilities
+- Use custom hooks for reusable logic
+- Implement proper loading and error states
+- Ensure accessibility with ARIA labels and keyboard navigation
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### API Integration
+- Use the centralized API client in `src/lib/api.ts`
+- Implement proper error handling for all API calls
+- Use React Query for server state management
+- Handle offline scenarios gracefully
 
-## How can I deploy this project?
+## 🧪 Testing
 
-Simply open [Lovable](https://lovable.dev/projects/46f88e3c-efd2-419e-8aa0-93c3467a1688) and click on Share -> Publish.
+The project uses Vitest for testing. Key testing areas:
+- Component unit tests with React Testing Library
+- Hook testing with custom render functions
+- Integration tests for critical user flows
+- API mocking for reliable test execution
 
-## Can I connect a custom domain to my Lovable project?
+## 🚀 Deployment
 
-Yes it is!
+### Production Build
+```bash
+npm run build
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+The build output is optimized for deployment to:
+- **Vercel** (recommended)
+- **Netlify**
+- **Any static hosting service**
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Environment Variables
+Create a `.env` file for environment-specific configuration:
+```
+VITE_API_URL=your_backend_api_url
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+## 🤝 Contributing
+
+1. Follow the existing code style and patterns
+2. Write tests for new features
+3. Update documentation for API changes
+4. Ensure all linting checks pass before submitting PRs
+
+## 📚 Additional Resources
+
+- **[Main Project README](../README.md)** - Overview of the entire Debtease system
+- **[Backend Documentation](../server/README.md)** - Server-side architecture and APIs
+- **[Component Documentation](./src/components/)** - Detailed component guides
